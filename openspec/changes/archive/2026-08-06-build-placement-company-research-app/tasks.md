@@ -49,5 +49,5 @@
 
 ## 6. Deployment
 
-- [ ] 6.1 Deploy to Vercel with provider API key, access passphrase and auth secret configured as environment variables
-- [ ] 6.2 Verify passphrase entry, brief generation, and free-tier rate-limit behavior on the deployed instance
+- [x] 6.1 Deploy to Vercel with provider API key, access passphrase and auth secret configured as environment variables
+- [x] 6.2 Verify passphrase entry, brief generation, and free-tier rate-limit behavior on the deployed instance
