@@ -32,7 +32,7 @@ export function BriefWorkspace() {
   /** Name of the last successful submit, so Retry re-runs the right company. */
   const lastSubmitted = useRef<string>("");
 
-  const run = useCallback(async (name: string) => {
+  const run = useCallback(async (name: string, forceRefresh = false) => {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       setValidationError("Enter a company name.");
@@ -53,7 +53,7 @@ export function BriefWorkspace() {
       const response = await fetch("/api/briefs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: trimmed }),
+        body: JSON.stringify({ companyName: trimmed, forceRefresh }),
         signal: controller.signal,
       });
 
@@ -172,7 +172,12 @@ export function BriefWorkspace() {
         </div>
       )}
 
-      {brief && !loading && <BriefView brief={brief} />}
+      {brief && !loading && (
+        <BriefView
+          brief={brief}
+          onForceRefresh={() => void run(lastSubmitted.current, true)}
+        />
+      )}
     </>
   );
 }

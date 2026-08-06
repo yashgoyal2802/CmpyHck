@@ -4,6 +4,7 @@ import { useState } from "react";
 import { briefToPlainText, formatSource } from "@/lib/brief/format";
 import { SECTOR_POLICY } from "@/lib/brief/sectors";
 import type { Basis, CompanyBrief, SourceRef } from "@/lib/brief/types";
+import { OrganizerPanel } from "./OrganizerPanel";
 
 /** Marks whether a statement rests on a source or on the model's analysis. */
 function BasisTag({ basis }: { basis: Basis }) {
@@ -50,7 +51,20 @@ function Unavailable({ children }: { children: React.ReactNode }) {
   return <p className="unavailable">{children}</p>;
 }
 
-export function BriefView({ brief }: { brief: CompanyBrief }) {
+function formatCachedAt(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+export function BriefView({
+  brief,
+  onForceRefresh,
+}: {
+  brief: CompanyBrief;
+  onForceRefresh?: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const sectorLabel = SECTOR_POLICY[brief.classification.sector].label;
 
@@ -77,13 +91,40 @@ export function BriefView({ brief }: { brief: CompanyBrief }) {
             </span>{" "}
             {brief.classification.rationale}
           </p>
+          {brief.cache && (
+            <p className="copy-note" style={{ margin: "0.25rem 0 0" }}>
+              {brief.cache.fromCache
+                ? `Facts reused from cache (last fully researched ${formatCachedAt(brief.cache.cachedAt)}). News is always fresh.`
+                : "Freshly researched."}
+            </p>
+          )}
         </div>
         <div className="copy-row">
+          {onForceRefresh && (
+            <button type="button" className="secondary" onClick={onForceRefresh}>
+              Force refresh
+            </button>
+          )}
           <button type="button" className="secondary" onClick={copyBrief}>
             {copied ? "Copied" : "Copy as text"}
           </button>
         </div>
       </header>
+
+      {brief.cache?.fromCache && (
+        <section className="card">
+          <h3>What&apos;s new since you last checked</h3>
+          {brief.cache.newSinceLastSeen && brief.cache.newSinceLastSeen.length > 0 ? (
+            <ul>
+              {brief.cache.newSinceLastSeen.map((item, index) => (
+                <li key={`${item.title}-${index}`}>{item.title}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="why">Nothing new since your last search.</p>
+          )}
+        </section>
+      )}
 
       <section className="card">
         <h3>Overview</h3>
@@ -188,6 +229,8 @@ export function BriefView({ brief }: { brief: CompanyBrief }) {
           </ul>
         </section>
       )}
+
+      <OrganizerPanel companyKey={brief.companyKey} resolvedName={brief.resolvedName} />
 
       <section className="card">
         <h3>Sources</h3>

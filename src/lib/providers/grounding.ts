@@ -176,6 +176,19 @@ function cleanValue(value: string): string | undefined {
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
+export interface ParsedNewsResearch {
+  noResults: boolean;
+  findings: string;
+}
+
+/** Parse the labelled response from `buildNewsResearchPrompt` — just NO_RESULTS and prose. */
+export function parseNewsResearchText(text: string): ParsedNewsResearch {
+  return {
+    noResults: isAffirmative(readLabel(text, "NO_RESULTS")),
+    findings: text.trim(),
+  };
+}
+
 function isAffirmative(value: string | undefined): boolean {
   if (!value) return false;
   return /^(yes|true)\b/i.test(value.trim());

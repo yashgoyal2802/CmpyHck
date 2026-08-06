@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { startSession } from "@/lib/auth/server";
-import { isAuthConfigured, verifyPassphrase } from "@/lib/auth/session";
+import { verifyCredentials } from "@/lib/auth/credentials";
+import { isAuthConfigured } from "@/lib/auth/session";
+import { getStorage } from "@/lib/storage";
 
 export default async function SignInPage({
   searchParams,
@@ -13,17 +15,19 @@ export default async function SignInPage({
   async function submit(formData: FormData) {
     "use server";
 
-    const submitted = formData.get("passphrase");
-    const ok = await verifyPassphrase(
-      typeof submitted === "string" ? submitted : undefined,
-      process.env.ACCESS_PASSPHRASE,
+    const username = formData.get("username");
+    const password = formData.get("password");
+    const ok = await verifyCredentials(
+      typeof username === "string" ? username.trim() : undefined,
+      typeof password === "string" ? password : undefined,
+      getStorage(),
     );
 
-    // One generic failure message: distinguishing "wrong passphrase" from
-    // "not configured" would tell an outsider which one to keep guessing at.
-    if (!ok) redirect("/signin?error=1");
+    // One generic failure message: distinguishing "unknown username" from
+    // "wrong password" would tell an outsider which one to keep guessing at.
+    if (!ok || typeof username !== "string") redirect("/signin?error=1");
 
-    await startSession();
+    await startSession(username.trim());
     redirect("/");
   }
 
@@ -37,28 +41,42 @@ export default async function SignInPage({
 
         {error && (
           <p className="notice" style={{ textAlign: "left" }} role="alert">
-            That passphrase was not accepted.
+            That username and password were not accepted.
           </p>
         )}
 
         {!configured && (
           <p className="notice" style={{ textAlign: "left" }}>
-            Access is not configured. Set <code>ACCESS_PASSPHRASE</code> and{" "}
-            <code>AUTH_SECRET</code>, then restart.
+            Access is not configured. Set <code>AUTH_SECRET</code>, provision an
+            account, then restart.
           </p>
         )}
 
         <form action={submit} style={{ marginTop: "1.5rem" }}>
-          <label htmlFor="passphrase" className="sr-only">
-            Access passphrase
+          <label htmlFor="username" className="sr-only">
+            Username
+          </label>
+          <div className="search" style={{ marginBottom: "0.75rem" }}>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              placeholder="Username"
+              required
+            />
+          </div>
+
+          <label htmlFor="password" className="sr-only">
+            Password
           </label>
           <div className="search">
             <input
-              id="passphrase"
-              name="passphrase"
+              id="password"
+              name="password"
               type="password"
               autoComplete="current-password"
-              placeholder="Access passphrase"
+              placeholder="Password"
               required
             />
             <button type="submit">Enter</button>
@@ -66,7 +84,8 @@ export default async function SignInPage({
         </form>
 
         <p className="copy-note" style={{ marginTop: "1.5rem" }}>
-          Access is limited to people who have the passphrase.
+          Access is limited to provisioned accounts. Forgotten password? Ask
+          whoever provisioned your account to reset it.
         </p>
       </div>
     </main>

@@ -1,13 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { BriefError } from "@/lib/brief/errors";
-import { briefDraftSchema, type BriefDraft } from "./draft";
-import { mapGroundingToSources, parseResearchText } from "./grounding";
-import { buildResearchPrompt, buildStructurePrompt } from "./prompts";
+import { cacheDraftSchema, briefDraftSchema, type BriefDraft, type CacheDraft } from "./draft";
+import { mapGroundingToSources, parseNewsResearchText, parseResearchText } from "./grounding";
+import {
+  buildCacheStructurePrompt,
+  buildNewsResearchPrompt,
+  buildResearchPrompt,
+  buildStructurePrompt,
+} from "./prompts";
 import type {
   BriefProvider,
+  NewsResearchResult,
   ResearchRequest,
   ResearchResult,
+  StructureFromCacheRequest,
   StructureRequest,
 } from "./types";
 
@@ -134,6 +141,82 @@ export function createGeminiProvider(
       }
 
       // The pipeline owns assembly; this stage returns the model-authored slice.
+      return result.data;
+    },
+
+    /** Cache-hit stage one: grounded search scoped to recent news only. */
+    async researchNews(request: ResearchRequest): Promise<NewsResearchResult> {
+      const prompt = buildNewsResearchPrompt(request.company);
+
+      const response = await callGemini(() =>
+        client.models.generateContent({
+          model,
+          contents: prompt,
+          config: { tools: [{ googleSearch: {} }] },
+        }),
+      );
+
+      const text = response.text?.trim();
+      if (!text) {
+        throw new BriefError(
+          "provider_error",
+          "The news research stage returned an empty response.",
+        );
+      }
+
+      const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+      const sources = mapGroundingToSources(groundingMetadata);
+      const parsed = parseNewsResearchText(text);
+
+      return { findings: parsed.findings, sources, noResults: parsed.noResults || sources.length === 0 };
+    },
+
+    /** Cache-hit stage two: news, talking points, and interviewer questions only. */
+    async structureFromCache(request: StructureFromCacheRequest): Promise<CacheDraft> {
+      const prompt = buildCacheStructurePrompt(request);
+
+      const response = await callGemini(() =>
+        client.models.generateContent({
+          model,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseJsonSchema: z.toJSONSchema(cacheDraftSchema, { io: "input" }),
+          },
+        }),
+      );
+
+      const text = response.text?.trim();
+      if (!text) {
+        throw new BriefError(
+          "malformed_response",
+          "The cache structuring stage returned an empty response.",
+        );
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch (cause) {
+        throw new BriefError(
+          "malformed_response",
+          "The cache structuring stage did not return valid JSON.",
+          { cause },
+        );
+      }
+
+      const result = cacheDraftSchema.safeParse(parsed);
+      if (!result.success) {
+        throw new BriefError(
+          "malformed_response",
+          `The cache draft did not match the expected shape: ${result.error.issues
+            .slice(0, 3)
+            .map((i) => `${i.path.join(".")} ${i.message}`)
+            .join("; ")}`,
+          { cause: result.error },
+        );
+      }
+
       return result.data;
     },
   };

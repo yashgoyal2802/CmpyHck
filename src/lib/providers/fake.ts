@@ -1,16 +1,21 @@
 import { findFixture, makeFixture, type BriefFixture } from "@/fixtures/briefs";
 import { BriefError, type BriefErrorKind } from "@/lib/brief/errors";
-import type { BriefDraft } from "./draft";
+import type { BriefDraft, CacheDraft } from "./draft";
 import type {
   BriefProvider,
+  NewsResearchResult,
   ResearchRequest,
   ResearchResult,
+  StructureFromCacheRequest,
   StructureRequest,
 } from "./types";
 
 export interface FakeProviderOptions {
   /** Force a failure at the named stage — used to test error handling. */
-  failWith?: { kind: BriefErrorKind; stage?: "research" | "structure" };
+  failWith?: {
+    kind: BriefErrorKind;
+    stage?: "research" | "structure" | "researchNews" | "structureFromCache";
+  };
   /** Extra fixtures, keyed by lowercased company name. */
   fixtures?: Record<string, BriefFixture>;
   /** Return an unclassifiable fixture for unknown names instead of throwing. */
@@ -44,7 +49,9 @@ export function createFakeProvider(
     );
   }
 
-  function maybeFail(stage: "research" | "structure") {
+  function maybeFail(
+    stage: "research" | "structure" | "researchNews" | "structureFromCache",
+  ) {
     if (!failWith) return;
     if ((failWith.stage ?? "research") !== stage) return;
     throw new BriefError(failWith.kind, `Fake provider failure at ${stage}.`, {
@@ -73,6 +80,27 @@ export function createFakeProvider(
           ...fixture.draft.deepDive,
           heading: request.plan.deepDiveHeading,
         },
+      };
+    },
+
+    async researchNews(request: ResearchRequest): Promise<NewsResearchResult> {
+      maybeFail("researchNews");
+      const fixture = resolve(request.company.requestedName);
+      return {
+        findings: fixture.research.findings,
+        sources: fixture.research.sources,
+        noResults: fixture.research.sources.length === 0,
+      };
+    },
+
+    async structureFromCache(request: StructureFromCacheRequest): Promise<CacheDraft> {
+      maybeFail("structureFromCache");
+      const fixture = resolve(request.company.requestedName);
+      return {
+        news: fixture.draft.news,
+        talkingPoints: fixture.draft.talkingPoints,
+        interviewerQuestions: fixture.draft.interviewerQuestions,
+        unavailableNotes: fixture.draft.unavailableNotes ?? [],
       };
     },
   };

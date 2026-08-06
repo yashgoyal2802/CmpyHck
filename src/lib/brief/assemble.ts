@@ -1,5 +1,5 @@
 import type { BriefDraft } from "@/lib/providers/draft";
-import type { NormalizedCompany } from "./normalize";
+import { companyCacheKey, type NormalizedCompany } from "./normalize";
 import type { SectionPlan } from "./plan";
 import {
   companyBriefSchema,
@@ -147,6 +147,7 @@ export function assembleBrief(input: AssembleInput): CompanyBrief {
   const brief: CompanyBrief = {
     requestedName: company.requestedName,
     resolvedName: draft.resolvedName || company.requestedName,
+    companyKey: companyCacheKey(company),
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     overview,
     classification: { ...draft.classification, sector: plan.sector },

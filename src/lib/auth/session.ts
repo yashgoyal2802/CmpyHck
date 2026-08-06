@@ -1,15 +1,10 @@
 /**
- * Shared-passphrase access control.
+ * Signed session tokens carrying an account identity.
  *
- * This app is for one student and a handful of classmates who all know each
- * other. What it protects is the free-tier research quota, not personal data —
- * there is no user data to leak, because briefs are not persisted. A shared
- * secret is therefore the right-sized mechanism, and it avoids an OAuth client
- * whose only benefit (per-user identity) belongs to the deferred saved-briefs
- * feature.
- *
- * If saved briefs with personal notes are built later, identity starts earning
- * its setup cost and this module is the thing to replace.
+ * Extends the original shared-passphrase session (an expiry-only signed
+ * cookie) with a username claim, so downstream code can scope data — the
+ * personal organizer — to the account that is actually signed in. The cookie
+ * mechanics, HMAC signing, and edge-compatibility are unchanged.
  *
  * Implemented on Web Crypto so it runs unchanged in Edge middleware.
  */
@@ -20,6 +15,7 @@ export const SESSION_COOKIE = "pb_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 /** Compare two byte arrays without leaking length or position via timing. */
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -27,32 +23,6 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) diff |= a[i] ^ b[i];
   return diff === 0;
-}
-
-async function sha256(value: string): Promise<Uint8Array> {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
-  return new Uint8Array(digest);
-}
-
-/**
- * Check a submitted passphrase.
- *
- * Both sides are hashed first so the comparison is over fixed-length digests —
- * a direct string compare would leak the passphrase length and, on most
- * engines, its matching prefix.
- *
- * Fails closed: an unset or empty configured passphrase rejects everyone,
- * including the owner. A misconfigured deploy should lock the door, not remove it.
- */
-export async function verifyPassphrase(
-  submitted: string | undefined | null,
-  configured: string | undefined | null,
-): Promise<boolean> {
-  if (!submitted || !configured) return false;
-  if (configured.trim().length === 0) return false;
-
-  const [a, b] = await Promise.all([sha256(submitted), sha256(configured)]);
-  return timingSafeEqual(a, b);
 }
 
 async function hmacKey(secret: string): Promise<CryptoKey> {
@@ -80,57 +50,105 @@ function fromHex(hex: string): Uint8Array | null {
   return bytes;
 }
 
+/** Base64url, unicode-safe, using only Web APIs available in Edge middleware. */
+function toBase64Url(value: string): string {
+  const bytes = encoder.encode(value);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(value: string): string | null {
+  try {
+    const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return decoder.decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 async function sign(payload: string, secret: string): Promise<string> {
   const key = await hmacKey(secret);
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
   return toHex(new Uint8Array(signature));
 }
 
+export interface SessionPayload {
+  username: string;
+  expiresAt: number;
+}
+
+function encodePayload(username: string, expiresAt: number): string {
+  return `${expiresAt}.${toBase64Url(username)}`;
+}
+
+function decodePayload(payload: string): SessionPayload | null {
+  const separator = payload.indexOf(".");
+  if (separator <= 0) return null;
+
+  const expiresAt = Number(payload.slice(0, separator));
+  if (!Number.isSafeInteger(expiresAt)) return null;
+
+  const username = fromBase64Url(payload.slice(separator + 1));
+  if (username === null || username.length === 0) return null;
+
+  return { username, expiresAt };
+}
+
 /**
- * Mint a session token: `<expiry>.<hmac>`.
+ * Mint a session token: `<expiry>.<username(base64url)>.<hmac>`.
  *
- * The expiry is inside the signed payload, so a client cannot extend its own
- * session by editing the cookie — tampering invalidates the signature.
+ * Both expiry and username are inside the signed payload, so a client cannot
+ * extend its own session or swap identities by editing the cookie —
+ * tampering with either invalidates the signature.
  */
 export async function createSessionToken(
   secret: string,
+  username: string,
   ttlSeconds: number = SESSION_TTL_SECONDS,
   now: number = Date.now(),
 ): Promise<string> {
   const expiresAt = Math.floor(now / 1000) + ttlSeconds;
-  const payload = String(expiresAt);
+  const payload = encodePayload(username, expiresAt);
   return `${payload}.${await sign(payload, secret)}`;
 }
 
+/** Verify a session token, returning the account identity it carries or null. */
 export async function verifySessionToken(
   token: string | undefined | null,
   secret: string | undefined | null,
   now: number = Date.now(),
-): Promise<boolean> {
-  if (!token || !secret) return false;
+): Promise<SessionPayload | null> {
+  if (!token || !secret) return null;
 
   const separator = token.lastIndexOf(".");
-  if (separator <= 0) return false;
+  if (separator <= 0) return null;
 
   const payload = token.slice(0, separator);
   const provided = fromHex(token.slice(separator + 1));
-  if (!provided) return false;
+  if (!provided) return null;
 
-  const expiresAt = Number(payload);
-  if (!Number.isSafeInteger(expiresAt)) return false;
+  const decoded = decodePayload(payload);
+  if (!decoded) return null;
 
   // Verify the signature even when expired, so an expired token and a forged
   // one take the same code path and cost the same time.
   const expected = fromHex(await sign(payload, secret));
-  if (!expected || !timingSafeEqual(provided, expected)) return false;
+  if (!expected || !timingSafeEqual(provided, expected)) return null;
 
-  return expiresAt * 1000 > now;
+  if (decoded.expiresAt * 1000 <= now) return null;
+
+  return decoded;
 }
 
 /** Loose env shape so callers and tests can pass a plain object. */
 export type AuthEnv = Record<string, string | undefined>;
 
-/** True when both the passphrase and the signing secret are configured. */
+/** True when the session-signing secret is configured. Account existence is a storage concern. */
 export function isAuthConfigured(env: AuthEnv): boolean {
-  return Boolean(env.ACCESS_PASSPHRASE?.trim() && env.AUTH_SECRET?.trim());
+  return Boolean(env.AUTH_SECRET?.trim());
 }

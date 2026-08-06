@@ -120,11 +120,22 @@ export const INTERVIEWER_QUESTION_COUNT = 3;
 export const NEWS_MIN = 3;
 export const NEWS_MAX = 5;
 
+/** Present only when the brief was served (wholly or partly) from the shared cache. */
+export const cacheInfoSchema = z.object({
+  fromCache: z.boolean(),
+  cachedAt: z.string(),
+  /** Set on a cache hit: news new since the last time this company was searched, empty if none. */
+  newSinceLastSeen: z.array(newsItemSchema).optional(),
+});
+export type CacheInfo = z.infer<typeof cacheInfoSchema>;
+
 export const companyBriefSchema = z.object({
   /** Exactly what the user typed. */
   requestedName: z.string().min(1),
   /** Canonical company name the research resolved to. */
   resolvedName: z.string().min(1),
+  /** Cache/organizer key for this company — stable across repeat searches of the same company. */
+  companyKey: z.string().min(1),
   generatedAt: z.string(),
   overview: claimSchema,
   classification: classificationSchema,
@@ -137,5 +148,7 @@ export const companyBriefSchema = z.object({
   sources: z.array(sourceRefSchema),
   /** Human-readable notes about what could not be established. */
   unavailableNotes: z.array(z.string()).default([]),
+  /** Absent when generated without a storage layer (e.g. tests calling the pipeline directly). */
+  cache: cacheInfoSchema.optional(),
 });
 export type CompanyBrief = z.infer<typeof companyBriefSchema>;

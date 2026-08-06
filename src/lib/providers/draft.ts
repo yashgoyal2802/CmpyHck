@@ -33,3 +33,19 @@ export const briefDraftSchema = z.object({
 });
 
 export type BriefDraft = z.infer<typeof briefDraftSchema>;
+
+/**
+ * The slice a provider authors on a cache hit: only the sections that must
+ * always be fresh (news) and the syntheses over facts + news (talking
+ * points, interviewer questions). Overview, classification, deep dive, and
+ * 4P come from the cache untouched — the provider is not asked to reproduce
+ * them.
+ */
+export const cacheDraftSchema = z.object({
+  news: newsSectionSchema,
+  talkingPoints: z.array(talkingPointSchema),
+  interviewerQuestions: z.array(interviewerQuestionSchema),
+  unavailableNotes: z.array(z.string()).default([]),
+});
+
+export type CacheDraft = z.infer<typeof cacheDraftSchema>;

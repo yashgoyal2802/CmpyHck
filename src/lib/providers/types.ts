@@ -1,7 +1,7 @@
 import type { NormalizedCompany } from "@/lib/brief/normalize";
 import type { SectionPlan } from "@/lib/brief/plan";
-import type { Classification, SourceRef } from "@/lib/brief/types";
-import type { BriefDraft } from "./draft";
+import type { Claim, Classification, DeepDive, FourPSection, SourceRef } from "@/lib/brief/types";
+import type { BriefDraft, CacheDraft } from "./draft";
 
 /**
  * The provider seam.
@@ -31,6 +31,21 @@ export interface BriefProvider {
    * authors. The pipeline merges this with the fields our code owns.
    */
   structure(request: StructureRequest): Promise<BriefDraft>;
+
+  /**
+   * Cache-hit stage one: grounded search scoped to recent news only, used
+   * instead of full `research()` when a company's stable facts are already
+   * cached. Cheaper than `research()` because it is not asked to establish
+   * an overview, classification, or deep dive.
+   */
+  researchNews(request: ResearchRequest): Promise<NewsResearchResult>;
+
+  /**
+   * Cache-hit stage two: produce only news, talking points, and interviewer
+   * questions, given the cached facts as established context. See
+   * `CacheDraft` for why overview/classification/deepDive/fourP are absent.
+   */
+  structureFromCache(request: StructureFromCacheRequest): Promise<CacheDraft>;
 }
 
 export interface ResearchRequest {
@@ -55,5 +70,30 @@ export interface ResearchResult {
 export interface StructureRequest {
   company: NormalizedCompany;
   research: ResearchResult;
+  plan: SectionPlan;
+}
+
+export interface NewsResearchResult {
+  /** Grounded prose findings about recent news only, carrying inline [n1] style markers. */
+  findings: string;
+  sources: SourceRef[];
+  /** True when search found no usable recent news — not an error, just nothing to report. */
+  noResults?: boolean;
+}
+
+/** The cached facts, given to a cache-hit structuring call as established context. */
+export interface CachedContext {
+  overview: Claim;
+  classification: Classification;
+  deepDive: Omit<DeepDive, "sector" | "usedFallback">;
+  fourP: FourPSection | null;
+  /** Origin-prefixed (`c1, c2, ...`) — citable by the cache-hit structuring call. */
+  sources: SourceRef[];
+}
+
+export interface StructureFromCacheRequest {
+  company: NormalizedCompany;
+  cached: CachedContext;
+  newsResearch: NewsResearchResult;
   plan: SectionPlan;
 }

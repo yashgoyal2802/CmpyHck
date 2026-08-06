@@ -1,7 +1,7 @@
 import type { NormalizedCompany } from "@/lib/brief/normalize";
 import type { SectionPlan } from "@/lib/brief/plan";
 import { SECTORS, SECTOR_POLICY } from "@/lib/brief/sectors";
-import type { ResearchResult } from "./types";
+import type { ResearchResult, StructureFromCacheRequest } from "./types";
 
 /**
  * Placement-usefulness ranking rules, shared by both stages.
@@ -141,6 +141,104 @@ ${fourPInstruction}
 Talking points: exactly ${plan.talkingPointCount}, usable in answers like "why do you want to join this company". Ground them in the research; where a point rests on your own analysis, mark it inferred.
 
 Interviewer questions: exactly ${plan.interviewerQuestionCount}, specific enough that they could only be asked of this company, and each with a short rationale. A question must not assume a fact the research did not establish.
+
+unavailableNotes: list anything a reader should know could not be established.`;
+}
+
+/**
+ * Cache-hit stage one: search for recent news only. No overview, sector, or
+ * deep dive — those already exist in the cache and this call must not
+ * re-derive or contradict them.
+ */
+export function buildNewsResearchPrompt(company: NormalizedCompany): string {
+  return `You are researching recent news about a company so an MBA student at SPJIMR can prepare for a campus placement interview with it. This company has already been researched before — you are only finding what is new since then. Do not describe what the company does or classify its sector; that is already known.
+
+Company: "${company.coreName}" (as entered: "${company.requestedName}")
+
+Search the web now for recent developments: strategic moves, deals, results, leadership changes, launches, hiring news — anything from roughly the last few months.
+
+${PLACEMENT_USEFULNESS}
+
+${SOURCE_DISCIPLINE}
+
+Report your findings as prose under these headings:
+
+NO_RESULTS: write "yes" only if you found essentially no recent news. Otherwise write "no".
+
+NEWS: the most placement-useful recent developments you found. For each, give what happened, when, and why an interviewer would expect the candidate to know it.
+
+Attribute claims to the sources you retrieved as you write.`;
+}
+
+/**
+ * Cache-hit stage two: produce only news, talking points, and interviewer
+ * questions. Overview/classification/deep dive/4P are given as established
+ * fact, not asked for — this is where most of the cache's token saving
+ * comes from.
+ */
+export function buildCacheStructurePrompt(request: StructureFromCacheRequest): string {
+  const { company, cached, newsResearch, plan } = request;
+
+  const establishedSources = cached.sources
+    .map((s) => {
+      const parts = [`${s.id}: ${s.title}`, s.sourceLabel];
+      if (s.date) parts.push(s.date);
+      if (s.url) parts.push(s.url);
+      return `- ${parts.join(" — ")}`;
+    })
+    .join("\n");
+  const newsSources = newsResearch.sources
+    .map((s) => {
+      const parts = [`${s.id}: ${s.title}`, s.sourceLabel];
+      if (s.date) parts.push(s.date);
+      if (s.url) parts.push(s.url);
+      return `- ${parts.join(" — ")}`;
+    })
+    .join("\n");
+
+  const fourPText = cached.fourP
+    ? cached.fourP.entries.map((e) => `- ${e.dimension}: ${e.body}`).join("\n")
+    : "(4P does not apply to this sector)";
+
+  return `Turn the research below into the news, talking points, and interviewer questions for a placement preparation brief. The company's overview, sector, and deep dive were already established in an earlier search — they are given below as established fact for context, not something you need to reproduce. Return JSON matching the provided schema exactly (news, talkingPoints, interviewerQuestions, unavailableNotes only).
+
+Company as entered: "${company.requestedName}"
+Resolved name: "${cached.classification.sector}" sector — "${plan.sectorLabel}"
+
+Established overview: ${cached.overview.body}
+
+Established deep dive ("${plan.deepDiveHeading}"):
+${cached.deepDive.topics.map((t) => `- ${t.heading}: ${t.body}`).join("\n") || "(none)"}
+
+Established 4P:
+${fourPText}
+
+Established sources (cite by id when a talking point or question directly restates one of these facts):
+${establishedSources || "(none)"}
+
+Fresh news sources — cite these by id for anything from the news search below:
+${newsSources || "(none retrieved)"}
+
+Recent news research findings:
+---
+${newsResearch.findings}
+---
+
+Rules:
+
+${SOURCE_DISCIPLINE}
+
+Marking sourced versus inferred is the most important judgement here. Mark a claim "sourced" only when a retrieved source (established or fresh) states its substance, and cite the sources that actually state it. Mark it "inferred" when you are drawing the conclusion yourself, and leave sourceIds empty.
+
+Cite at most three sources per claim.
+
+${PLACEMENT_USEFULNESS}
+
+News: give between ${plan.newsMin} and ${plan.newsMax} items from the fresh news research, chosen for placement usefulness. Each needs a whyItMatters. If the news research found nothing relevant, return an empty items array and set news.unavailable to a short sentence saying so — do not invent updates, and do not reuse the established overview or deep dive as if it were news.
+
+Talking points: exactly ${plan.talkingPointCount}, drawing on the established facts and the fresh news together.
+
+Interviewer questions: exactly ${plan.interviewerQuestionCount}, specific to this company, each with a short rationale.
 
 unavailableNotes: list anything a reader should know could not be established.`;
 }

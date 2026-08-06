@@ -90,6 +90,16 @@ function stripLegalSuffix(name: string): string {
 }
 
 /**
+ * Cache key for a company: the normalized core name, case- and space-folded.
+ *
+ * Deliberately coarser than `coreName` (which preserves display casing) so
+ * "Hindustan Unilever" and "hindustan unilever" share one cache row.
+ */
+export function companyCacheKey(company: NormalizedCompany): string {
+  return company.coreName.toLowerCase();
+}
+
+/**
  * Search queries for the research stage.
  *
  * Placement usefulness is steered by the prompt, but the queries themselves
