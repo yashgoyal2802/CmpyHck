@@ -27,7 +27,7 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
   const examples = ["Hindustan Unilever", "McKinsey & Company", "HDFC Bank"];
 
   return (
-    <>
+    <div className="w-full min-w-0 flex flex-col gap-6">
       <form
         className="w-full max-w-2xl mx-auto relative"
         onSubmit={(event) => {
@@ -68,7 +68,7 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
         </button>
       </form>
 
-      <div className="flex flex-wrap items-center justify-center gap-3 -mt-4">
+      <div className="flex flex-wrap items-center justify-center gap-3">
         <span className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
           Try
         </span>
@@ -89,13 +89,13 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
       </div>
 
       {validationError && (
-        <p className="text-error text-sm mt-2" id="company-error" role="alert">
+        <p className="text-error text-sm" id="company-error" role="alert">
           {validationError}
         </p>
       )}
 
       {loading && (
-        <p className="text-on-surface-variant text-sm mt-4 flex items-center gap-2" role="status">
+        <p className="text-on-surface-variant text-sm flex items-center gap-2" role="status">
           Searching the web and building the brief. Grounded research takes a
           little while.
           <SearchingDots />
@@ -103,7 +103,7 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
       )}
 
       {error && (
-        <div className="mt-4 p-4 rounded-2xl bg-error-container text-on-error-container" role="alert">
+        <div className="p-4 rounded-2xl bg-error-container text-on-error-container" role="alert">
           <div>{error.message}</div>
 
           {error.candidates && error.candidates.length > 0 && (
@@ -151,6 +151,6 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
           onForceRefresh={() => void run(lastSubmitted, true)}
         />
       )}
-    </>
+    </div>
   );
 }

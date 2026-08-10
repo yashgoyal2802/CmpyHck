@@ -32,8 +32,8 @@ export default async function HomePage({
           className="absolute top-[200px] left-0 w-1/2 h-[400px] bg-gradient-to-tr from-secondary-fixed/20 via-transparent to-transparent blur-3xl -z-10 pointer-events-none rounded-tr-full"
           aria-hidden="true"
         />
-        <div className="max-w-container-max mx-auto px-4 md:px-6 py-16 md:py-[120px] flex flex-col items-center text-center gap-10 min-h-[560px] justify-center">
-          <div className="flex flex-col items-center max-w-3xl gap-3">
+        <div className="max-w-container-max mx-auto px-4 md:px-6 py-16 md:py-[120px] flex flex-col items-center gap-10">
+          <div className="flex flex-col items-center text-center max-w-3xl gap-3">
             <h1 className="text-5xl md:text-[48px] font-extrabold tracking-tight text-on-surface leading-[1.1] text-balance">
               Prep smarter,{" "}
               <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-primary to-surface-tint">

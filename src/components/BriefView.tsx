@@ -39,7 +39,7 @@ function Cites({ ids, sources }: { ids: string[]; sources: SourceRef[] }) {
               href={source.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-primary underline decoration-dotted"
+              className="text-on-surface-variant underline decoration-dotted hover:text-primary hover:decoration-solid"
             >
               [{source.id}]
             </a>
@@ -196,10 +196,10 @@ function FiveForcesDiagram({ framework, sources }: { framework: Extract<Framewor
   const rivalry = byDimension.get("Competitive Rivalry");
   const satellites = framework.entries.filter((e) => e.dimension !== "Competitive Rivalry");
   const positions: Record<string, string> = {
-    "Supplier Power": "force-left",
-    "Buyer Power": "force-right",
-    "Threat of Substitutes": "force-top",
-    "Threat of New Entrants": "force-bottom",
+    "Supplier Power": "left",
+    "Buyer Power": "right",
+    "Threat of Substitutes": "top",
+    "Threat of New Entrants": "bottom",
   };
 
   const ForceCell = ({ entry }: { entry: (typeof framework.entries)[number] }) => (
@@ -355,7 +355,7 @@ export function BriefView({
   }
 
   return (
-    <article className="flex flex-col gap-6 mt-12">
+    <article className="w-full min-w-0 flex flex-col gap-6 mt-12">
       <header
         className="flex flex-col md:flex-row md:items-start justify-between gap-6 animate-entrance"
       >
@@ -440,19 +440,40 @@ export function BriefView({
           <Unavailable>{brief.news.unavailable}</Unavailable>
         ) : (
           <div className="flex flex-col divide-y divide-outline-variant/30">
-            {brief.news.items.map((item, index) => (
-              <div className="py-3 first:pt-0 last:pb-0" key={`${item.title}-${index}`}>
-                <h4 className="font-bold text-on-surface">{item.title}</h4>
-                {item.date && <p className="text-xs text-on-surface-variant mt-0.5">{item.date}</p>}
-                <p className="text-on-surface mt-1 max-w-[75ch]">
-                  {item.summary}
-                  <Cites ids={item.sourceIds} sources={brief.sources} />
-                </p>
-                <p className="text-on-surface-variant text-sm mt-1 max-w-[75ch]">
-                  Why it matters: {item.whyItMatters}
-                </p>
-              </div>
-            ))}
+            {brief.news.items.map((item, index) => {
+              // The title links straight to the first citable source, so
+              // clicking through to the actual article doesn't depend on
+              // spotting the small [n1]-style citation bracket.
+              const primarySource = item.sourceIds
+                .map((id) => brief.sources.find((s) => s.id === id))
+                .find((s): s is SourceRef => Boolean(s?.url));
+
+              return (
+                <div className="py-3 first:pt-0 last:pb-0" key={`${item.title}-${index}`}>
+                  {primarySource ? (
+                    <a
+                      href={primarySource.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-on-surface hover:text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      {item.title}
+                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                    </a>
+                  ) : (
+                    <h4 className="font-bold text-on-surface">{item.title}</h4>
+                  )}
+                  {item.date && <p className="text-xs text-on-surface-variant mt-0.5">{item.date}</p>}
+                  <p className="text-on-surface mt-1 max-w-[75ch]">
+                    {item.summary}
+                    <Cites ids={item.sourceIds} sources={brief.sources} />
+                  </p>
+                  <p className="text-on-surface-variant text-sm mt-1 max-w-[75ch]">
+                    Why it matters: {item.whyItMatters}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>
@@ -546,12 +567,12 @@ export function BriefView({
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-on-surface hover:text-primary"
+                  className="text-on-surface hover:text-primary break-all"
                 >
                   {formatSource(source)}
                 </a>
               ) : (
-                <span className="text-on-surface">{formatSource(source)}</span>
+                <span className="text-on-surface break-words">{formatSource(source)}</span>
               )}
             </li>
           ))}
