@@ -41,7 +41,6 @@ const SCHEMA_STATEMENTS = [
     username TEXT NOT NULL,
     company_key TEXT NOT NULL,
     resolved_name TEXT NOT NULL,
-    prepped BOOLEAN NOT NULL DEFAULT false,
     -- Plain text, not DATE: the driver round-trips DATE through a JS Date
     -- object and re-serializes it in UTC, which silently shifts the date by
     -- a day for any timezone ahead of UTC. This column is never used in SQL
@@ -53,14 +52,13 @@ const SCHEMA_STATEMENTS = [
   )`,
 
   // --- redesign-ui-bookmarks-dashboard-tracker: status + bookmarked -------
-  // Additive-only. `prepped` stays in place (unused by application code
-  // after this change) until a separate later deploy drops it — see
-  // design.md §Decision 3 / §Migration Plan. Every statement below is safe
-  // to re-run: ADD COLUMN/CONSTRAINT are guarded, and the backfill only
-  // touches rows where `status` is still NULL.
+  // The `prepped` -> `status` backfill (design.md §Decision 3) already ran
+  // and was verified against production data; the UPDATE that performed it
+  // is gone now that `prepped` itself is dropped below — keeping it would
+  // reference a column that no longer exists. Every statement below is
+  // still safe to re-run (ADD COLUMN/CONSTRAINT/DROP COLUMN are all guarded).
   `ALTER TABLE organizer_entries ADD COLUMN IF NOT EXISTS bookmarked BOOLEAN NOT NULL DEFAULT false`,
   `ALTER TABLE organizer_entries ADD COLUMN IF NOT EXISTS status TEXT`,
-  `UPDATE organizer_entries SET status = CASE WHEN prepped THEN 'prepping' ELSE 'tracking' END WHERE status IS NULL`,
   `ALTER TABLE organizer_entries ALTER COLUMN status SET DEFAULT 'tracking'`,
   `ALTER TABLE organizer_entries ALTER COLUMN status SET NOT NULL`,
   // ORGANIZER_STATUSES values are inlined here (SQL cannot reference the TS
@@ -73,6 +71,10 @@ const SCHEMA_STATEMENTS = [
    EXCEPTION
      WHEN duplicate_object THEN NULL;
    END $$`,
+  // Follow-up to the backfill above, shipped as its own deploy after the
+  // backfill was verified against production data (design.md §Migration
+  // Plan step 3) — safe to re-run, a no-op once the column is gone.
+  `ALTER TABLE organizer_entries DROP COLUMN IF EXISTS prepped`,
 ];
 
 let schemaReady: Promise<void> | null = null;

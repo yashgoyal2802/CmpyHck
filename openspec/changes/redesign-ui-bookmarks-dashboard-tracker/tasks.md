@@ -58,8 +58,8 @@
 
 ## 9. Migration follow-through
 
-- [ ] 9.1 Verify the `status` backfill against real `organizer_entries` data (read-only check) after step 1's migration has run in production.
-- [ ] 9.2 Ship a follow-up statement dropping the `prepped` column from `organizer_entries` once 9.1 is confirmed clean (design.md §Migration Plan step 3) — separate deploy from the additive migration.
+- [x] 9.1 Verify the `status` backfill against real `organizer_entries` data (read-only check) after step 1's migration has run in production.
+- [x] 9.2 Ship a follow-up statement dropping the `prepped` column from `organizer_entries` once 9.1 is confirmed clean (design.md §Migration Plan step 3) — separate deploy from the additive migration.
 
 ## 10. Verification
 
