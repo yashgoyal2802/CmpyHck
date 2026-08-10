@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/server";
-import { getStorage, type ConfidenceRating } from "@/lib/storage";
+import { getStorage, ORGANIZER_STATUSES, type ConfidenceRating, type OrganizerStatus } from "@/lib/storage";
 
 function unauthorized() {
   return NextResponse.json(
@@ -20,9 +20,14 @@ export async function GET() {
 interface OrganizerUpsertBody {
   companyKey?: unknown;
   resolvedName?: unknown;
-  prepped?: unknown;
+  status?: unknown;
+  bookmarked?: unknown;
   interviewDate?: unknown;
   confidence?: unknown;
+}
+
+function isOrganizerStatus(value: unknown): value is OrganizerStatus {
+  return typeof value === "string" && (ORGANIZER_STATUSES as readonly string[]).includes(value);
 }
 
 export async function POST(request: Request) {
@@ -48,7 +53,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const prepped = Boolean(body.prepped);
+  if (!isOrganizerStatus(body.status)) {
+    return NextResponse.json(
+      {
+        error: {
+          kind: "invalid_input",
+          message: `status must be one of: ${ORGANIZER_STATUSES.join(", ")}.`,
+        },
+      },
+      { status: 400 },
+    );
+  }
+  const status = body.status;
+
+  const bookmarked = Boolean(body.bookmarked);
 
   const interviewDate =
     typeof body.interviewDate === "string" && body.interviewDate.trim().length > 0
@@ -65,10 +83,27 @@ export async function POST(request: Request) {
     username,
     companyKey,
     resolvedName,
-    prepped,
+    status,
+    bookmarked,
     interviewDate,
     confidence,
   });
 
   return NextResponse.json({ entry });
+}
+
+export async function DELETE(request: Request) {
+  const username = await getSessionUser();
+  if (!username) return unauthorized();
+
+  const companyKey = new URL(request.url).searchParams.get("companyKey")?.trim();
+  if (!companyKey) {
+    return NextResponse.json(
+      { error: { kind: "invalid_input", message: "companyKey query param is required." } },
+      { status: 400 },
+    );
+  }
+
+  await getStorage().deleteOrganizerEntry(username, companyKey);
+  return NextResponse.json({ ok: true });
 }

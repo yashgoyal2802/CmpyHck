@@ -1,4 +1,4 @@
-import type { Claim, Classification, DeepDive, FourPSection, NewsItem, SourceRef } from "@/lib/brief/types";
+import type { Claim, Classification, DeepDive, Framework, NewsItem, SourceRef } from "@/lib/brief/types";
 
 /**
  * The storage seam.
@@ -20,6 +20,8 @@ export interface Storage {
   listOrganizerEntries(username: string): Promise<OrganizerEntry[]>;
   getOrganizerEntry(username: string, companyKey: string): Promise<OrganizerEntry | null>;
   putOrganizerEntry(entry: OrganizerEntryInput): Promise<OrganizerEntry>;
+  /** Fully removes tracking for a company — not the same as setting status back to "tracking", which would still leave an entry. */
+  deleteOrganizerEntry(username: string, companyKey: string): Promise<void>;
 }
 
 export interface Account {
@@ -34,7 +36,7 @@ export interface CompanyCacheEntry {
   overview: Claim;
   classification: Classification;
   deepDive: DeepDive;
-  fourP: FourPSection | null;
+  framework: Framework;
   /** Origin-prefixed (`c1, c2, ...`) so they never collide with a fresh request's `n1, n2, ...`. */
   sources: SourceRef[];
   cachedAt: string;
@@ -49,11 +51,29 @@ export interface LastSeenNews {
 
 export type ConfidenceRating = 1 | 2 | 3 | 4 | 5;
 
+/**
+ * Manually-set preparation status. No automatic transitions — see
+ * design.md (redesign-ui-bookmarks-dashboard-tracker) §Decision 2 for why
+ * this is a string union backed by a Postgres CHECK constraint rather than
+ * a Postgres ENUM.
+ */
+export const ORGANIZER_STATUSES = [
+  "tracking",
+  "prepping",
+  "interview_scheduled",
+  "interviewed",
+  "offer",
+  "not_selected",
+] as const;
+export type OrganizerStatus = (typeof ORGANIZER_STATUSES)[number];
+
 export interface OrganizerEntry {
   username: string;
   companyKey: string;
   resolvedName: string;
-  prepped: boolean;
+  status: OrganizerStatus;
+  /** Independent of `status` — quick-access reference, not a tracking signal. */
+  bookmarked: boolean;
   interviewDate: string | null;
   confidence: ConfidenceRating | null;
   updatedAt: string;

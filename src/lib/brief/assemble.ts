@@ -3,8 +3,11 @@ import { companyCacheKey, type NormalizedCompany } from "./normalize";
 import type { SectionPlan } from "./plan";
 import {
   companyBriefSchema,
+  FIVE_FORCES,
+  FOUR_P_DIMENSIONS,
   type Claim,
   type CompanyBrief,
+  type Framework,
   type SourceRef,
   type TalkingPoint,
 } from "./types";
@@ -83,31 +86,12 @@ export function assembleBrief(input: AssembleInput): CompanyBrief {
         : undefined),
   };
 
-  // --- Conditional 4P -------------------------------------------------------
-  // The plan decides applicability. A draft that returned 4P for a sector where
-  // it does not apply gets it dropped; a plan that wanted it and did not get it
-  // is recorded rather than quietly missing.
-  let fourP = plan.includeFourP ? draft.fourP : null;
-  if (plan.includeFourP && !draft.fourP) {
-    notes.push("4P analysis applies to this sector but could not be generated.");
-    fourP = null;
-  }
-  if (fourP) {
-    fourP = {
-      entries: fourP.entries.map((entry) => {
-        const checked = enforceBasis(
-          { body: entry.body, basis: entry.basis, sourceIds: entry.sourceIds },
-          validIds,
-        );
-        return {
-          dimension: entry.dimension,
-          body: entry.body,
-          basis: checked.basis,
-          sourceIds: checked.sourceIds,
-        };
-      }),
-    };
-  }
+  // --- Strategic framework ---------------------------------------------------
+  // The plan decides which framework (4P or Five Forces) this brief gets — never
+  // both, never neither. A draft that returned the wrong kind (or none at all)
+  // for what the plan wanted falls back to a labelled "not established"
+  // placeholder rather than the brief silently omitting the section.
+  const framework = buildFramework(plan.framework, draft.framework, validIds, notes);
 
   // --- Fixed counts ---------------------------------------------------------
   // Trim overruns; never pad a shortfall, because padding means fabricating.
@@ -153,7 +137,7 @@ export function assembleBrief(input: AssembleInput): CompanyBrief {
     classification: { ...draft.classification, sector: plan.sector },
     news,
     deepDive,
-    fourP,
+    framework,
     talkingPoints,
     interviewerQuestions,
     sources,
@@ -182,6 +166,59 @@ export const MAX_CITATIONS_PER_CLAIM = 3;
 function keepValid(ids: string[] | undefined, validIds: Set<string>): string[] {
   const resolved = (ids ?? []).filter((id) => validIds.has(id));
   return [...new Set(resolved)].slice(0, MAX_CITATIONS_PER_CLAIM);
+}
+
+/**
+ * Build the one strategic framework a brief carries. If the draft provided
+ * the kind the plan asked for, its entries are enforced through the same
+ * sourced/inferred discipline as every other claim. If it didn't (wrong kind
+ * or missing entirely), a labelled placeholder stands in — the "SHALL NOT
+ * omit a framework entirely" requirement is a schema-level guarantee, not a
+ * best-effort one.
+ */
+function buildFramework(
+  wanted: SectionPlan["framework"],
+  provided: BriefDraft["framework"],
+  validIds: Set<string>,
+  notes: string[],
+): Framework {
+  if (wanted === "four_p") {
+    if (provided?.kind === "four_p") {
+      return { kind: "four_p", entries: provided.entries.map((entry) => enforceEntryBasis(entry, validIds)) };
+    }
+    notes.push("4P analysis applies to this sector but could not be generated.");
+    return {
+      kind: "four_p",
+      entries: FOUR_P_DIMENSIONS.map((dimension) => ({
+        dimension,
+        body: "Not established.",
+        basis: "inferred" as const,
+        sourceIds: [],
+      })),
+    };
+  }
+
+  if (provided?.kind === "five_forces") {
+    return { kind: "five_forces", entries: provided.entries.map((entry) => enforceEntryBasis(entry, validIds)) };
+  }
+  notes.push("Five Forces analysis could not be generated.");
+  return {
+    kind: "five_forces",
+    entries: FIVE_FORCES.map((dimension) => ({
+      dimension,
+      body: "Not established.",
+      basis: "inferred" as const,
+      sourceIds: [],
+    })),
+  };
+}
+
+function enforceEntryBasis<T extends { body: string; basis: Claim["basis"]; sourceIds: string[] }>(
+  entry: T,
+  validIds: Set<string>,
+): T {
+  const checked = enforceBasis({ body: entry.body, basis: entry.basis, sourceIds: entry.sourceIds }, validIds);
+  return { ...entry, basis: checked.basis, sourceIds: checked.sourceIds };
 }
 
 /**

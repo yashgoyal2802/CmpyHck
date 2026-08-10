@@ -101,6 +101,39 @@ export const fourPSectionSchema = z.object({
 });
 export type FourPSection = z.infer<typeof fourPSectionSchema>;
 
+export const FIVE_FORCES = [
+  "Competitive Rivalry",
+  "Supplier Power",
+  "Buyer Power",
+  "Threat of Substitutes",
+  "Threat of New Entrants",
+] as const;
+
+export const fiveForcesEntrySchema = z.object({
+  dimension: z.enum(FIVE_FORCES),
+  body: z.string().min(1),
+  basis: basisSchema,
+  sourceIds: z.array(z.string()).default([]),
+});
+export type FiveForcesEntry = z.infer<typeof fiveForcesEntrySchema>;
+
+export const fiveForcesSectionSchema = z.object({
+  entries: z.array(fiveForcesEntrySchema).length(5),
+});
+export type FiveForcesSection = z.infer<typeof fiveForcesSectionSchema>;
+
+/**
+ * Every brief carries exactly one strategic framework: 4P for sectors where
+ * marketing framing drives the interview, Five Forces everywhere else (see
+ * `fourPApplies` in ./sectors). `kind` discriminates which one a given brief
+ * has — never both, never neither.
+ */
+export const frameworkSchema = z.discriminatedUnion("kind", [
+  fourPSectionSchema.extend({ kind: z.literal("four_p") }),
+  fiveForcesSectionSchema.extend({ kind: z.literal("five_forces") }),
+]);
+export type Framework = z.infer<typeof frameworkSchema>;
+
 export const talkingPointSchema = z.object({
   point: z.string().min(1),
   basis: basisSchema,
@@ -141,8 +174,8 @@ export const companyBriefSchema = z.object({
   classification: classificationSchema,
   news: newsSectionSchema,
   deepDive: deepDiveSchema,
-  /** `null` means 4P does not apply to this sector — not that it failed. */
-  fourP: fourPSectionSchema.nullable(),
+  /** Never null — every brief has exactly one strategic framework. */
+  framework: frameworkSchema,
   talkingPoints: z.array(talkingPointSchema),
   interviewerQuestions: z.array(interviewerQuestionSchema),
   sources: z.array(sourceRefSchema),

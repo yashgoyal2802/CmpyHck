@@ -23,7 +23,8 @@ export interface SectionPlan {
   sectorLabel: string;
   deepDiveHeading: string;
   themes: string[];
-  includeFourP: boolean;
+  /** Every brief gets exactly one: 4P where marketing framing drives the interview, Five Forces otherwise. */
+  framework: "four_p" | "five_forces";
   /** Classification was uncertain; the general deep dive is used instead. */
   usedFallback: boolean;
   newsMin: number;
@@ -44,7 +45,7 @@ export function planSections(classification: Classification): SectionPlan {
     sectorLabel: policy.label,
     deepDiveHeading: policy.deepDiveHeading,
     themes: policy.themes,
-    includeFourP: fourPApplies(effectiveSector, classification.marketingRelevant),
+    framework: fourPApplies(effectiveSector, classification.marketingRelevant) ? "four_p" : "five_forces",
     usedFallback,
     newsMin: NEWS_MIN,
     newsMax: NEWS_MAX,

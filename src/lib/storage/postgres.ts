@@ -1,11 +1,12 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
-import type { NewsItem } from "@/lib/brief/types";
+import { frameworkSchema, type Framework, type NewsItem } from "@/lib/brief/types";
 import type {
   Account,
   CompanyCacheEntry,
   LastSeenNews,
   OrganizerEntry,
   OrganizerEntryInput,
+  OrganizerStatus,
   Storage,
 } from "./types";
 
@@ -50,6 +51,28 @@ const SCHEMA_STATEMENTS = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (username, company_key)
   )`,
+
+  // --- redesign-ui-bookmarks-dashboard-tracker: status + bookmarked -------
+  // Additive-only. `prepped` stays in place (unused by application code
+  // after this change) until a separate later deploy drops it — see
+  // design.md §Decision 3 / §Migration Plan. Every statement below is safe
+  // to re-run: ADD COLUMN/CONSTRAINT are guarded, and the backfill only
+  // touches rows where `status` is still NULL.
+  `ALTER TABLE organizer_entries ADD COLUMN IF NOT EXISTS bookmarked BOOLEAN NOT NULL DEFAULT false`,
+  `ALTER TABLE organizer_entries ADD COLUMN IF NOT EXISTS status TEXT`,
+  `UPDATE organizer_entries SET status = CASE WHEN prepped THEN 'prepping' ELSE 'tracking' END WHERE status IS NULL`,
+  `ALTER TABLE organizer_entries ALTER COLUMN status SET DEFAULT 'tracking'`,
+  `ALTER TABLE organizer_entries ALTER COLUMN status SET NOT NULL`,
+  // ORGANIZER_STATUSES values are inlined here (SQL cannot reference the TS
+  // constant); keep this list in sync with src/lib/storage/types.ts.
+  `DO $$
+   BEGIN
+     ALTER TABLE organizer_entries
+       ADD CONSTRAINT organizer_status_check
+       CHECK (status IN ('tracking', 'prepping', 'interview_scheduled', 'interviewed', 'offer', 'not_selected'));
+   EXCEPTION
+     WHEN duplicate_object THEN NULL;
+   END $$`,
 ];
 
 let schemaReady: Promise<void> | null = null;
@@ -91,7 +114,17 @@ export function createPostgresStorage(options: PostgresStorageOptions): Storage 
         [companyKey],
       );
       const row = rows[0] as CompanyCacheRow | undefined;
-      return row ? rowToCacheEntry(row) : null;
+      if (!row) return null;
+
+      // A row written before the `four_p` -> `framework` schema change (see
+      // design.md §Decision 4, redesign-ui-bookmarks-dashboard-tracker)
+      // won't validate against the new discriminated shape. Rather than
+      // crash or attempt a backfill, treat it exactly like "no cached
+      // entry" — the pipeline already knows how to re-research from there.
+      const parsed = frameworkSchema.safeParse(row.four_p);
+      if (!parsed.success) return null;
+
+      return rowToCacheEntry(row, parsed.data);
     },
     async putCompanyCache(entry: CompanyCacheEntry) {
       await ready();
@@ -113,7 +146,7 @@ export function createPostgresStorage(options: PostgresStorageOptions): Storage 
           JSON.stringify(entry.overview),
           JSON.stringify(entry.classification),
           JSON.stringify(entry.deepDive),
-          entry.fourP ? JSON.stringify(entry.fourP) : null,
+          JSON.stringify(entry.framework),
           JSON.stringify(entry.sources),
           entry.cachedAt,
         ],
@@ -142,7 +175,7 @@ export function createPostgresStorage(options: PostgresStorageOptions): Storage 
     async listOrganizerEntries(username) {
       await ready();
       const rows = await sql.query(
-        `SELECT username, company_key, resolved_name, prepped, interview_date, confidence, updated_at
+        `SELECT username, company_key, resolved_name, status, bookmarked, interview_date, confidence, updated_at
          FROM organizer_entries WHERE username = $1 ORDER BY updated_at DESC`,
         [username],
       );
@@ -151,7 +184,7 @@ export function createPostgresStorage(options: PostgresStorageOptions): Storage 
     async getOrganizerEntry(username, companyKey) {
       await ready();
       const rows = await sql.query(
-        `SELECT username, company_key, resolved_name, prepped, interview_date, confidence, updated_at
+        `SELECT username, company_key, resolved_name, status, bookmarked, interview_date, confidence, updated_at
          FROM organizer_entries WHERE username = $1 AND company_key = $2`,
         [username, companyKey],
       );
@@ -162,25 +195,34 @@ export function createPostgresStorage(options: PostgresStorageOptions): Storage 
       await ready();
       const rows = await sql.query(
         `INSERT INTO organizer_entries
-           (username, company_key, resolved_name, prepped, interview_date, confidence, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, now())
+           (username, company_key, resolved_name, status, bookmarked, interview_date, confidence, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now())
          ON CONFLICT (username, company_key) DO UPDATE SET
            resolved_name = EXCLUDED.resolved_name,
-           prepped = EXCLUDED.prepped,
+           status = EXCLUDED.status,
+           bookmarked = EXCLUDED.bookmarked,
            interview_date = EXCLUDED.interview_date,
            confidence = EXCLUDED.confidence,
            updated_at = now()
-         RETURNING username, company_key, resolved_name, prepped, interview_date, confidence, updated_at`,
+         RETURNING username, company_key, resolved_name, status, bookmarked, interview_date, confidence, updated_at`,
         [
           entry.username,
           entry.companyKey,
           entry.resolvedName,
-          entry.prepped,
+          entry.status,
+          entry.bookmarked,
           entry.interviewDate,
           entry.confidence,
         ],
       );
       return rowToOrganizerEntry(rows[0] as OrganizerRow);
+    },
+    async deleteOrganizerEntry(username, companyKey) {
+      await ready();
+      await sql.query(
+        `DELETE FROM organizer_entries WHERE username = $1 AND company_key = $2`,
+        [username, companyKey],
+      );
     },
   };
 }
@@ -191,19 +233,20 @@ interface CompanyCacheRow {
   overview: CompanyCacheEntry["overview"];
   classification: CompanyCacheEntry["classification"];
   deep_dive: CompanyCacheEntry["deepDive"];
-  four_p: CompanyCacheEntry["fourP"];
+  /** Column name predates the four_p -> framework schema change; still stores whichever framework this brief has. */
+  four_p: unknown;
   sources: CompanyCacheEntry["sources"];
   cached_at: string;
 }
 
-function rowToCacheEntry(row: CompanyCacheRow): CompanyCacheEntry {
+function rowToCacheEntry(row: CompanyCacheRow, framework: Framework): CompanyCacheEntry {
   return {
     companyKey: row.company_key,
     resolvedName: row.resolved_name,
     overview: row.overview,
     classification: row.classification,
     deepDive: row.deep_dive,
-    fourP: row.four_p,
+    framework,
     sources: row.sources,
     cachedAt: row.cached_at,
   };
@@ -213,7 +256,8 @@ interface OrganizerRow {
   username: string;
   company_key: string;
   resolved_name: string;
-  prepped: boolean;
+  status: OrganizerStatus;
+  bookmarked: boolean;
   interview_date: string | null;
   confidence: number | null;
   updated_at: string;
@@ -224,7 +268,8 @@ function rowToOrganizerEntry(row: OrganizerRow): OrganizerEntry {
     username: row.username,
     companyKey: row.company_key,
     resolvedName: row.resolved_name,
-    prepped: row.prepped,
+    status: row.status,
+    bookmarked: row.bookmarked,
     interviewDate: row.interview_date,
     confidence: row.confidence as OrganizerEntry["confidence"],
     updatedAt: row.updated_at,

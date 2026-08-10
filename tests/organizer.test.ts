@@ -11,7 +11,8 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
       username: "priya",
       companyKey: COMPANY_KEY,
       resolvedName: "Acme Consulting",
-      prepped: true,
+      status: "prepping",
+      bookmarked: false,
       interviewDate: null,
       confidence: 4,
     });
@@ -30,7 +31,8 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
       username: "priya",
       companyKey: COMPANY_KEY,
       resolvedName: "Acme Consulting",
-      prepped: true,
+      status: "prepping",
+      bookmarked: false,
       interviewDate: "2026-09-01",
       confidence: 5,
     });
@@ -38,7 +40,8 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
       username: "yash",
       companyKey: COMPANY_KEY,
       resolvedName: "Acme Consulting",
-      prepped: false,
+      status: "tracking",
+      bookmarked: false,
       interviewDate: null,
       confidence: 2,
     });
@@ -46,8 +49,8 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
     const priyaEntry = await storage.getOrganizerEntry("priya", COMPANY_KEY);
     const yashEntry = await storage.getOrganizerEntry("yash", COMPANY_KEY);
 
-    expect(priyaEntry).toMatchObject({ prepped: true, interviewDate: "2026-09-01", confidence: 5 });
-    expect(yashEntry).toMatchObject({ prepped: false, interviewDate: null, confidence: 2 });
+    expect(priyaEntry).toMatchObject({ status: "prepping", interviewDate: "2026-09-01", confidence: 5 });
+    expect(yashEntry).toMatchObject({ status: "tracking", interviewDate: null, confidence: 2 });
   });
 
   it("accepts an entry with no interview date set", async () => {
@@ -57,7 +60,8 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
       username: "priya",
       companyKey: COMPANY_KEY,
       resolvedName: "Acme Consulting",
-      prepped: false,
+      status: "tracking",
+      bookmarked: false,
       interviewDate: null,
       confidence: null,
     });
@@ -72,7 +76,8 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
       username: "priya",
       companyKey: COMPANY_KEY,
       resolvedName: "Acme Consulting",
-      prepped: false,
+      status: "tracking",
+      bookmarked: false,
       interviewDate: null,
       confidence: null,
     });
@@ -80,13 +85,31 @@ describe("personal organizer (tasks 7.10-7.11)", () => {
       username: "priya",
       companyKey: COMPANY_KEY,
       resolvedName: "Acme Consulting",
-      prepped: true,
+      status: "prepping",
+      bookmarked: false,
       interviewDate: null,
       confidence: 3,
     });
 
     const entries = await storage.listOrganizerEntries("priya");
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ prepped: true, confidence: 3 });
+    expect(entries[0]).toMatchObject({ status: "prepping", confidence: 3 });
+  });
+
+  it("tracks a bookmark independently of preparation status", async () => {
+    const storage = createMemoryStorage();
+
+    await storage.putOrganizerEntry({
+      username: "priya",
+      companyKey: COMPANY_KEY,
+      resolvedName: "Acme Consulting",
+      status: "tracking",
+      bookmarked: true,
+      interviewDate: null,
+      confidence: null,
+    });
+
+    const entry = await storage.getOrganizerEntry("priya", COMPANY_KEY);
+    expect(entry).toMatchObject({ status: "tracking", bookmarked: true });
   });
 });

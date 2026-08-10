@@ -86,9 +86,10 @@ export function buildStructurePrompt(
     })
     .join("\n");
 
-  const fourPInstruction = plan.includeFourP
-    ? `Produce the fourP section with exactly four entries, one per dimension, in the order Product, Price, Place, Promotion. Marketing framing drives interviews in this sector, so give it full weight. Where company-specific evidence exists use it and set basis to "sourced". Where it does not, reason at the industry level and set basis to "inferred" — the reader must be able to tell which is which.`
-    : `Set fourP to null. 4P analysis does not apply to this sector and must be omitted rather than filled with generic industry content.`;
+  const frameworkInstruction =
+    plan.framework === "four_p"
+      ? `Produce framework with kind "four_p" and exactly four entries, one per dimension, in the order Product, Price, Place, Promotion. Marketing framing drives interviews in this sector, so give it full weight. Where company-specific evidence exists use it and set basis to "sourced". Where it does not, reason at the industry level and set basis to "inferred" — the reader must be able to tell which is which.`
+      : `Produce framework with kind "five_forces" and exactly five entries, one per force, in the order Competitive Rivalry, Supplier Power, Buyer Power, Threat of Substitutes, Threat of New Entrants. This sector's interviews centre on competitive/industry-structure framing rather than marketing framing, so analyse each force specifically for this company and industry — not generic textbook definitions. Where company-specific evidence exists use it and set basis to "sourced". Where it does not, reason at the industry level and set basis to "inferred".`;
 
   const fallbackNote = plan.usedFallback
     ? `\nThe sector classification was uncertain, so this brief uses the general business deep dive. Say so in the deep dive rather than asserting sector-specific detail the evidence does not support.`
@@ -103,7 +104,7 @@ Sections to produce for this brief (already decided — follow them exactly):
 - Sector: ${plan.sector} (${plan.sectorLabel})
 - Deep dive heading: "${plan.deepDiveHeading}"
 - Deep dive themes: ${plan.themes.join("; ")}
-- 4P section: ${plan.includeFourP ? "include" : "omit (null)"}
+- Strategic framework: ${plan.framework === "four_p" ? "4P analysis" : "Porter's Five Forces analysis"}
 - Recent news: between ${plan.newsMin} and ${plan.newsMax} items
 - Talking points: exactly ${plan.talkingPointCount}
 - Interviewer questions: exactly ${plan.interviewerQuestionCount}${fallbackNote}
@@ -136,7 +137,7 @@ News: give between ${plan.newsMin} and ${plan.newsMax} items, chosen for placeme
 
 Deep dive: follow the themes listed above. If reliable evidence could not be established, set deepDive.unavailable and keep topics minimal rather than padding.
 
-${fourPInstruction}
+${frameworkInstruction}
 
 Talking points: exactly ${plan.talkingPointCount}, usable in answers like "why do you want to join this company". Ground them in the research; where a point rests on your own analysis, mark it inferred.
 
@@ -196,9 +197,8 @@ export function buildCacheStructurePrompt(request: StructureFromCacheRequest): s
     })
     .join("\n");
 
-  const fourPText = cached.fourP
-    ? cached.fourP.entries.map((e) => `- ${e.dimension}: ${e.body}`).join("\n")
-    : "(4P does not apply to this sector)";
+  const frameworkLabel = cached.framework.kind === "four_p" ? "4P" : "Five Forces";
+  const frameworkText = cached.framework.entries.map((e) => `- ${e.dimension}: ${e.body}`).join("\n");
 
   return `Turn the research below into the news, talking points, and interviewer questions for a placement preparation brief. The company's overview, sector, and deep dive were already established in an earlier search — they are given below as established fact for context, not something you need to reproduce. Return JSON matching the provided schema exactly (news, talkingPoints, interviewerQuestions, unavailableNotes only).
 
@@ -210,8 +210,8 @@ Established overview: ${cached.overview.body}
 Established deep dive ("${plan.deepDiveHeading}"):
 ${cached.deepDive.topics.map((t) => `- ${t.heading}: ${t.body}`).join("\n") || "(none)"}
 
-Established 4P:
-${fourPText}
+Established ${frameworkLabel}:
+${frameworkText}
 
 Established sources (cite by id when a talking point or question directly restates one of these facts):
 ${establishedSources || "(none)"}

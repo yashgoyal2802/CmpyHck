@@ -3,7 +3,7 @@ import {
   claimSchema,
   classificationSchema,
   deepDiveSchema,
-  fourPSectionSchema,
+  frameworkSchema,
   interviewerQuestionSchema,
   newsSectionSchema,
   talkingPointSchema,
@@ -26,7 +26,8 @@ export const briefDraftSchema = z.object({
   classification: classificationSchema,
   news: newsSectionSchema,
   deepDive: deepDiveSchema.omit({ sector: true, usedFallback: true }),
-  fourP: fourPSectionSchema.nullable(),
+  /** Nullable: the provider may fail to produce the framework the plan asked for; assemble.ts enforces the "never neither" guarantee on the final brief. */
+  framework: frameworkSchema.nullable(),
   talkingPoints: z.array(talkingPointSchema),
   interviewerQuestions: z.array(interviewerQuestionSchema),
   unavailableNotes: z.array(z.string()).default([]),

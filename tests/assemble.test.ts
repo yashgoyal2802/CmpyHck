@@ -98,9 +98,10 @@ describe("source integrity enforcement", () => {
 });
 
 describe("policy enforcement over model output", () => {
-  it("drops a 4P section the model returned for a sector that excludes it", () => {
+  it("replaces a 4P section the model returned for a sector that excludes it with Five Forces", () => {
     const draft = baseDraft();
-    draft.fourP = {
+    draft.framework = {
+      kind: "four_p",
       entries: [
         { dimension: "Product", body: "x", basis: "inferred", sourceIds: [] },
         { dimension: "Price", body: "x", basis: "inferred", sourceIds: [] },
@@ -109,17 +110,20 @@ describe("policy enforcement over model output", () => {
       ],
     };
 
-    // Consulting excludes 4P; the model does not get to override that.
-    expect(assemble(draft, classification({ sector: "consulting" })).fourP).toBeNull();
+    // Consulting excludes 4P; the model does not get to override that, and
+    // the brief still gets exactly one framework — Five Forces instead.
+    const brief = assemble(draft, classification({ sector: "consulting" }));
+    expect(brief.framework.kind).toBe("five_forces");
   });
 
-  it("records a note when 4P applies but was not generated", () => {
+  it("falls back to a labelled placeholder when 4P applies but was not generated", () => {
     const draft = baseDraft();
-    draft.fourP = null;
+    draft.framework = null;
 
     const brief = assemble(draft, classification({ sector: "fmcg" }));
 
-    expect(brief.fourP).toBeNull();
+    expect(brief.framework.kind).toBe("four_p");
+    expect(brief.framework.entries.every((e) => e.basis === "inferred")).toBe(true);
     expect(brief.unavailableNotes.join(" ")).toMatch(/4P analysis applies/i);
   });
 

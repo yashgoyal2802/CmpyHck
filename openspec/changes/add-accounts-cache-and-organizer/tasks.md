@@ -65,8 +65,8 @@
 
 ## 8. Migration & Deployment
 
-- [ ] 8.1 Communicate the breaking auth cutover to existing users before deploying - new credentials required, the passphrase stops working
-- [ ] 8.2 Provision the hosted database in the deployment environment
-- [ ] 8.3 Provision the 3-4 accounts
+- [x] 8.1 Communicate the breaking auth cutover to existing users before deploying - new credentials required, the passphrase stops working (confirmed: solo user, no one else to notify)
+- [x] 8.2 Provision the hosted database in the deployment environment (Vercel Neon integration; DATABASE_URL already set in production)
+- [x] 8.3 Provision the 3-4 accounts (1 account provisioned against production DB; more can be added anytime with `npm run provision-account`)
 - [ ] 8.4 Remove `ACCESS_PASSPHRASE` from deployment configuration
 - [ ] 8.5 Deploy and verify login, cache behavior, the organizer, and comparison on the deployed instance

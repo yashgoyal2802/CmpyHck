@@ -1,96 +1,35 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useEffect } from "react";
 import { BriefView } from "./BriefView";
-import type { CompanyBrief } from "@/lib/brief/types";
-
-interface ApiError {
-  kind: string;
-  message: string;
-  retryable?: boolean;
-  retryAfterSeconds?: number;
-  candidates?: string[];
-}
+import { SearchingDots } from "./SearchingDots";
+import { useBriefSearch } from "./BriefSearchProvider";
 
 /**
  * The working screen: input, research state, brief.
  *
- * State is held client-side and the brief is replaced in place, so repeated
- * searches never need a page refresh — the app is used dozens of times across a
- * placement season, and a reload between every company would be the main
- * friction.
+ * State lives in BriefSearchProvider (mounted at the root layout), not
+ * here — so navigating to Compare/Organizer/Saved and back does not lose
+ * an in-progress or completed search. This component just renders it.
  */
-export function BriefWorkspace() {
-  const [companyName, setCompanyName] = useState("");
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [brief, setBrief] = useState<CompanyBrief | null>(null);
-  const [loading, setLoading] = useState(false);
+export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) {
+  const { companyName, setCompanyName, validationError, error, brief, loading, lastSubmitted, run, runOnce } =
+    useBriefSearch();
 
-  /** Abort an in-flight request when a new search starts. */
-  const inFlight = useRef<AbortController | null>(null);
-  /** Name of the last successful submit, so Retry re-runs the right company. */
-  const lastSubmitted = useRef<string>("");
+  // Auto-run for a company opened from the Saved tab (?company=...).
+  // runOnce no-ops if this exact company already triggered an auto-run,
+  // so returning to "/" without a query param, or re-opening the same
+  // saved company, doesn't re-fetch.
+  useEffect(() => {
+    if (initialCompany) runOnce(initialCompany);
+  }, [initialCompany, runOnce]);
 
-  const run = useCallback(async (name: string, forceRefresh = false) => {
-    const trimmed = name.trim();
-    if (trimmed.length === 0) {
-      setValidationError("Enter a company name.");
-      setError(null);
-      return;
-    }
-
-    setValidationError(null);
-    setError(null);
-    setLoading(true);
-    lastSubmitted.current = trimmed;
-
-    inFlight.current?.abort();
-    const controller = new AbortController();
-    inFlight.current = controller;
-
-    try {
-      const response = await fetch("/api/briefs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: trimmed, forceRefresh }),
-        signal: controller.signal,
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setError(payload?.error ?? {
-          kind: "provider_error",
-          message: "Research could not be completed.",
-          retryable: true,
-        });
-        setBrief(null);
-        return;
-      }
-
-      setBrief(payload.brief as CompanyBrief);
-    } catch (caught) {
-      // An abort means the user started another search; not an error state.
-      if (caught instanceof DOMException && caught.name === "AbortError") return;
-      setError({
-        kind: "network",
-        message: "Could not reach the server. Check your connection and retry.",
-        retryable: true,
-      });
-      setBrief(null);
-    } finally {
-      if (inFlight.current === controller) {
-        inFlight.current = null;
-        setLoading(false);
-      }
-    }
-  }, []);
+  const examples = ["Hindustan Unilever", "McKinsey & Company", "HDFC Bank"];
 
   return (
     <>
       <form
-        className="search"
+        className="w-full max-w-2xl mx-auto relative"
         onSubmit={(event) => {
           event.preventDefault();
           void run(companyName);
@@ -99,6 +38,9 @@ export function BriefWorkspace() {
         <label htmlFor="company" className="sr-only">
           Company name
         </label>
+        <span className="material-symbols-outlined absolute left-6 top-1/2 -translate-y-1/2 text-outline-variant text-[28px] pointer-events-none">
+          search
+        </span>
         <input
           id="company"
           name="company"
@@ -110,41 +52,72 @@ export function BriefWorkspace() {
           disabled={loading}
           aria-invalid={validationError ? true : undefined}
           aria-describedby={validationError ? "company-error" : undefined}
+          className="w-full pl-16 pr-[150px] py-5 rounded-[32px] bg-surface-container-lowest text-lg text-on-surface placeholder:text-outline focus:outline-none focus:ring-4 focus:ring-primary-fixed-dim/50 shadow-[0_8px_32px_rgba(76,36,112,0.08)] hover:shadow-[0_12px_48px_rgba(76,36,112,0.12)] transition-shadow disabled:opacity-60"
         />
-        <button type="submit" disabled={loading}>
+        <button
+          type="submit"
+          disabled={loading}
+          className="absolute inset-y-2 right-2 px-6 bg-primary text-on-primary font-semibold rounded-[24px] hover:bg-primary-container transition-colors shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+        >
           {loading ? "Researching…" : "Build brief"}
+          {!loading && (
+            <span className="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-1">
+              arrow_forward
+            </span>
+          )}
         </button>
       </form>
 
+      <div className="flex flex-wrap items-center justify-center gap-3 -mt-4">
+        <span className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+          Try
+        </span>
+        {examples.map((example) => (
+          <button
+            key={example}
+            type="button"
+            onClick={() => {
+              setCompanyName(example);
+              void run(example);
+            }}
+            disabled={loading}
+            className="px-4 py-2 rounded-full bg-surface-container text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors shadow-sm disabled:opacity-50"
+          >
+            {example}
+          </button>
+        ))}
+      </div>
+
       {validationError && (
-        <p className="field-error" id="company-error" role="alert">
+        <p className="text-error text-sm mt-2" id="company-error" role="alert">
           {validationError}
         </p>
       )}
 
       {loading && (
-        <p className="status" role="status">
+        <p className="text-on-surface-variant text-sm mt-4 flex items-center gap-2" role="status">
           Searching the web and building the brief. Grounded research takes a
           little while.
+          <SearchingDots />
         </p>
       )}
 
       {error && (
-        <div className="notice" role="alert">
+        <div className="mt-4 p-4 rounded-2xl bg-error-container text-on-error-container" role="alert">
           <div>{error.message}</div>
 
           {error.candidates && error.candidates.length > 0 && (
-            <div className="row">
-              <span className="copy-note">Did you mean:</span>
+            <div className="flex items-center gap-3 flex-wrap mt-2">
+              <span className="text-sm opacity-80">Did you mean:</span>
               {error.candidates.map((candidate) => (
                 <button
                   key={candidate}
                   type="button"
-                  className="secondary"
                   onClick={() => {
                     setCompanyName(candidate);
                     void run(candidate);
                   }}
+                  className="px-3 py-1.5 rounded-full bg-surface-container-lowest text-on-surface text-sm font-semibold hover:bg-surface-container active:scale-[0.97] transition-[background-color,transform]"
                 >
                   {candidate}
                 </button>
@@ -153,17 +126,17 @@ export function BriefWorkspace() {
           )}
 
           {error.retryable && (
-            <div className="row">
+            <div className="flex items-center gap-3 flex-wrap mt-2">
               <button
                 type="button"
-                className="secondary"
                 disabled={loading}
-                onClick={() => void run(lastSubmitted.current || companyName)}
+                onClick={() => void run(lastSubmitted || companyName)}
+                className="px-3 py-1.5 rounded-full bg-surface-container-lowest text-on-surface text-sm font-semibold hover:bg-surface-container active:scale-[0.97] transition-[background-color,transform] disabled:opacity-50"
               >
                 Retry
               </button>
               {error.retryAfterSeconds && (
-                <span className="copy-note">
+                <span className="text-sm opacity-80">
                   Suggested wait: {error.retryAfterSeconds}s
                 </span>
               )}
@@ -175,7 +148,7 @@ export function BriefWorkspace() {
       {brief && !loading && (
         <BriefView
           brief={brief}
-          onForceRefresh={() => void run(lastSubmitted.current, true)}
+          onForceRefresh={() => void run(lastSubmitted, true)}
         />
       )}
     </>

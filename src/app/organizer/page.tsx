@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppHeader } from "@/components/AppHeader";
+import { OrganizerBoard } from "@/components/OrganizerBoard";
 import { getSessionUser } from "@/lib/auth/server";
 import { getStorage } from "@/lib/storage";
 
@@ -10,47 +12,33 @@ export default async function OrganizerPage() {
   const entries = await getStorage().listOrganizerEntries(username);
 
   return (
-    <main className="page">
-      <header className="masthead">
-        <div>
-          <h1>Your organizer</h1>
-          <p>Preparation status, interview dates, and confidence — private to you.</p>
+    <>
+      <AppHeader username={username} active="organizer" />
+      <main className="pt-16 min-h-screen bg-surface relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10" aria-hidden="true">
+          <div className="absolute -top-64 -right-64 w-96 h-96 bg-primary opacity-5 rounded-full blur-3xl" />
+          <div className="absolute top-1/3 -left-32 w-72 h-72 bg-secondary opacity-10 rounded-full blur-2xl" />
         </div>
-        <nav style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <Link href="/">Search</Link>
-          <Link href="/compare">Compare</Link>
-        </nav>
-      </header>
+        <div className="max-w-container-max mx-auto px-4 md:px-6 py-10 flex flex-col gap-10">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <div>
+              <h1 className="text-5xl font-extrabold text-primary mb-2">Your Pipeline</h1>
+              <p className="text-lg text-on-surface-variant max-w-2xl">
+                Preparation status, interview dates, and confidence — private to you.
+              </p>
+            </div>
+            <Link
+              href="/"
+              className="bg-primary text-on-primary hover:-translate-y-1 hover:shadow-xl px-5 py-2.5 rounded-full font-semibold text-sm transition-all shadow-md flex items-center gap-2 shrink-0"
+            >
+              <span className="material-symbols-outlined text-[18px]">search</span>
+              Research a company
+            </Link>
+          </div>
 
-      {entries.length === 0 ? (
-        <p className="status">
-          Nothing tracked yet. Search a company and use the tracker on its brief
-          to add it here.
-        </p>
-      ) : (
-        <section className="card">
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left" }}>
-                <th>Company</th>
-                <th>Prepped</th>
-                <th>Interview date</th>
-                <th>Confidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.companyKey}>
-                  <td>{entry.resolvedName}</td>
-                  <td>{entry.prepped ? "Yes" : "No"}</td>
-                  <td>{entry.interviewDate ?? "—"}</td>
-                  <td>{entry.confidence ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
-    </main>
+          <OrganizerBoard initialEntries={entries} />
+        </div>
+      </main>
+    </>
   );
 }

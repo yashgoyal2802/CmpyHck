@@ -99,8 +99,9 @@ export function makeFixture(options: FixtureOptions): BriefFixture {
             },
           ],
         },
-    fourP: includeFourP
+    framework: includeFourP
       ? {
+          kind: "four_p",
           entries: [
             { dimension: "Product", body: `${name}'s portfolio and range.`, basis: "sourced", sourceIds: [sourceList[2].id] },
             { dimension: "Price", body: `${name}'s pricing posture.`, basis: "inferred", sourceIds: [] },
@@ -108,7 +109,16 @@ export function makeFixture(options: FixtureOptions): BriefFixture {
             { dimension: "Promotion", body: `${name}'s promotional activity.`, basis: "inferred", sourceIds: [] },
           ],
         }
-      : null,
+      : {
+          kind: "five_forces",
+          entries: [
+            { dimension: "Competitive Rivalry", body: `How intensely ${name} competes for share.`, basis: "sourced", sourceIds: [sourceList[2].id] },
+            { dimension: "Supplier Power", body: `${name}'s leverage over its suppliers.`, basis: "inferred", sourceIds: [] },
+            { dimension: "Buyer Power", body: `How much leverage ${name}'s customers hold.`, basis: "inferred", sourceIds: [] },
+            { dimension: "Threat of Substitutes", body: `Alternatives that could displace ${name}.`, basis: "sourced", sourceIds: [sourceList[0].id] },
+            { dimension: "Threat of New Entrants", body: `Barriers to new entrants in ${name}'s space.`, basis: "inferred", sourceIds: [] },
+          ],
+        },
     talkingPoints: Array.from({ length: 5 }, (_, i) => ({
       point: `Talking point ${i + 1} connecting ${name}'s research to an interview answer.`,
       basis: i % 2 === 0 ? ("sourced" as const) : ("inferred" as const),

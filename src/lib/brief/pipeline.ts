@@ -133,9 +133,10 @@ async function writeCache(
       ...brief.deepDive,
       topics: brief.deepDive.topics.map((topic) => remapSourceIds(topic, idMap)),
     },
-    fourP: brief.fourP
-      ? { entries: brief.fourP.entries.map((entry) => remapSourceIds(entry, idMap)) }
-      : null,
+    framework: {
+      ...brief.framework,
+      entries: brief.framework.entries.map((entry) => remapSourceIds(entry, idMap)),
+    } as CompanyBrief["framework"],
     sources: cachedSources,
     cachedAt,
   });
@@ -174,7 +175,7 @@ async function tryCacheHit(input: {
       overview: cached.overview,
       classification: cached.classification,
       deepDive: cached.deepDive,
-      fourP: cached.fourP,
+      framework: cached.framework,
       sources: cached.sources,
     },
     newsResearch,
@@ -191,7 +192,7 @@ async function tryCacheHit(input: {
     classification: cached.classification,
     news: cacheDraft.news,
     deepDive: cached.deepDive,
-    fourP: cached.fourP,
+    framework: cached.framework,
     talkingPoints: cacheDraft.talkingPoints,
     interviewerQuestions: cacheDraft.interviewerQuestions,
     unavailableNotes: cacheDraft.unavailableNotes,

@@ -12,6 +12,7 @@ function hashPasswordSync(password: string): string {
 }
 
 export type { Storage } from "./types";
+export { ORGANIZER_STATUSES } from "./types";
 export type {
   Account,
   CompanyCacheEntry,
@@ -19,6 +20,7 @@ export type {
   LastSeenNews,
   OrganizerEntry,
   OrganizerEntryInput,
+  OrganizerStatus,
 } from "./types";
 
 let cached: Storage | null = null;

@@ -51,13 +51,11 @@ export function briefToPlainText(brief: CompanyBrief): string {
   }
   lines.push("");
 
-  if (brief.fourP) {
-    lines.push("4P ANALYSIS");
-    for (const entry of brief.fourP.entries) {
-      lines.push(`- ${entry.dimension}: ${entry.body}${tag(entry.basis)}${cite(entry.sourceIds)}`);
-    }
-    lines.push("");
+  lines.push(brief.framework.kind === "four_p" ? "4P ANALYSIS" : "FIVE FORCES ANALYSIS");
+  for (const entry of brief.framework.entries) {
+    lines.push(`- ${entry.dimension}: ${entry.body}${tag(entry.basis)}${cite(entry.sourceIds)}`);
   }
+  lines.push("");
 
   lines.push("TALKING POINTS");
   brief.talkingPoints.forEach((point, index) => {

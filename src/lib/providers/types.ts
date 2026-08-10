@@ -1,6 +1,6 @@
 import type { NormalizedCompany } from "@/lib/brief/normalize";
 import type { SectionPlan } from "@/lib/brief/plan";
-import type { Claim, Classification, DeepDive, FourPSection, SourceRef } from "@/lib/brief/types";
+import type { Claim, Classification, DeepDive, Framework, SourceRef } from "@/lib/brief/types";
 import type { BriefDraft, CacheDraft } from "./draft";
 
 /**
@@ -86,7 +86,7 @@ export interface CachedContext {
   overview: Claim;
   classification: Classification;
   deepDive: Omit<DeepDive, "sector" | "usedFallback">;
-  fourP: FourPSection | null;
+  framework: Framework;
   /** Origin-prefixed (`c1, c2, ...`) — citable by the cache-hit structuring call. */
   sources: SourceRef[];
 }

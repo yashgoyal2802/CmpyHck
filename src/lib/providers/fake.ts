@@ -71,11 +71,12 @@ export function createFakeProvider(
       maybeFail("structure");
       const fixture = resolve(request.company.requestedName);
 
-      // Honour the plan the pipeline computed: a fixture carrying a 4P section
-      // must not smuggle it into a brief whose plan excluded it.
+      // Honour the plan the pipeline computed: a fixture carrying a framework
+      // of the wrong kind must not smuggle it into a brief whose plan wanted
+      // the other one.
       return {
         ...fixture.draft,
-        fourP: request.plan.includeFourP ? fixture.draft.fourP : null,
+        framework: fixture.draft.framework?.kind === request.plan.framework ? fixture.draft.framework : null,
         deepDive: {
           ...fixture.draft.deepDive,
           heading: request.plan.deepDiveHeading,

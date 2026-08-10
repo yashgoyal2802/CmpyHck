@@ -64,11 +64,11 @@ describe("sector classification drives section selection (task 5.6)", () => {
   });
 });
 
-describe("conditional 4P analysis (task 5.7)", () => {
+describe("strategic framework: 4P or Five Forces, never both, never neither (task 5.7)", () => {
   it("includes 4P for FMCG, the sector where it is the interview", async () => {
     const result = await brief("Northwind Foods");
-    expect(result.fourP).not.toBeNull();
-    expect(result.fourP?.entries.map((e) => e.dimension)).toEqual([
+    expect(result.framework.kind).toBe("four_p");
+    expect(result.framework.entries.map((e) => e.dimension)).toEqual([
       "Product",
       "Price",
       "Place",
@@ -76,20 +76,21 @@ describe("conditional 4P analysis (task 5.7)", () => {
     ]);
   });
 
-  it("omits 4P for BFSI rather than filling it with generic content", async () => {
+  it("gives Five Forces for BFSI instead of filling 4P with generic content", async () => {
     const result = await brief("Meridian Bank");
-    expect(result.fourP).toBeNull();
+    expect(result.framework.kind).toBe("five_forces");
+    expect(result.framework.entries).toHaveLength(5);
   });
 
-  it("omits 4P for consulting, tech and conglomerate", async () => {
+  it("gives Five Forces for consulting, tech and conglomerate", async () => {
     for (const name of ["Acme Consulting", "Helios Tech", "Vertex Group"]) {
-      expect((await brief(name)).fourP).toBeNull();
+      expect((await brief(name)).framework.kind).toBe("five_forces");
     }
   });
 
   it("labels industry-level 4P reasoning as inferred, not as fact", async () => {
     const result = await brief("Northwind Foods");
-    const entries = result.fourP?.entries ?? [];
+    const entries = result.framework.entries;
 
     expect(entries.some((e) => e.basis === "inferred")).toBe(true);
     expect(entries.some((e) => e.basis === "sourced")).toBe(true);
@@ -104,7 +105,7 @@ describe("conditional 4P analysis (task 5.7)", () => {
     // marketingRelevant signal decides, per the byRoleRelevance policy.
     const result = await brief("Lumen Direct");
     expect(result.classification.sector).toBe("other");
-    expect(result.fourP).not.toBeNull();
+    expect(result.framework.kind).toBe("four_p");
   });
 });
 
@@ -130,7 +131,7 @@ describe("section planning", () => {
     expect(plan.sector).toBe("other");
     expect(plan.usedFallback).toBe(true);
     // An uncertain FMCG call must not carry FMCG's automatic 4P with it.
-    expect(plan.includeFourP).toBe(false);
+    expect(plan.framework).toBe("five_forces");
   });
 
   it("keeps 4P for an uncertain classification that is still marketing-led", () => {
@@ -138,6 +139,6 @@ describe("section planning", () => {
       classification({ sector: "fmcg", confidence: "uncertain", marketingRelevant: true }),
     );
     expect(plan.sector).toBe("other");
-    expect(plan.includeFourP).toBe(true);
+    expect(plan.framework).toBe("four_p");
   });
 });
