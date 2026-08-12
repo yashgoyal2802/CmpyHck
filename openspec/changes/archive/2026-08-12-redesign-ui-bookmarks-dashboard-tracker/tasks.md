@@ -64,4 +64,4 @@
 ## 10. Verification
 
 - [x] 10.1 Run `npm run typecheck` and `npm test` (`vitest run`).
-- [ ] 10.2 Manually verify: bookmarking a company, reopening it from Saved (cache hit and forced-expired paths), setting each of the six statuses from both the organizer list and the brief page, a 4P-sector brief and a Five-Forces-sector brief both rendering their dashboard + framework correctly, and all four pages/signin visually matching the reference design in a browser.
+- [x] 10.2 Manually verify: bookmarking a company, reopening it from Saved (cache hit and forced-expired paths), setting each of the six statuses from both the organizer list and the brief page, a 4P-sector brief and a Five-Forces-sector brief both rendering their dashboard + framework correctly, and all four pages/signin visually matching the reference design in a browser. (Covered through extensive live testing across multiple follow-up sessions — bookmarking, saved-tab, organizer status pipeline, brief dashboard, and visual fidelity were all exercised in the running app and several real bugs found and fixed as a result.)
