@@ -24,9 +24,18 @@ export interface Storage {
   deleteOrganizerEntry(username: string, companyKey: string): Promise<void>;
 }
 
+/**
+ * Fixed role set — see design.md (add-user-roles) §Decision 2 for why this
+ * is a string union backed by a Postgres CHECK constraint rather than a
+ * Postgres ENUM, mirroring OrganizerStatus's own reasoning.
+ */
+export const ACCOUNT_ROLES = ["admin", "standard", "search_only"] as const;
+export type AccountRole = (typeof ACCOUNT_ROLES)[number];
+
 export interface Account {
   username: string;
   passwordHash: string;
+  role: AccountRole;
 }
 
 /** Stable parts of a company's research, keyed on the normalized company name. */

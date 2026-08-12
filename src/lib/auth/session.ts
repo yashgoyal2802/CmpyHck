@@ -1,3 +1,5 @@
+import type { AccountRole } from "@/lib/storage/types";
+
 /**
  * Signed session tokens carrying an account identity.
  *
@@ -6,7 +8,9 @@
  * personal organizer — to the account that is actually signed in. The cookie
  * mechanics, HMAC signing, and edge-compatibility are unchanged.
  *
- * Implemented on Web Crypto so it runs unchanged in Edge middleware.
+ * Implemented on Web Crypto so it runs unchanged in Edge middleware. The
+ * `AccountRole` import above is type-only and erased at compile time, so it
+ * does not pull `postgres.ts`'s Node-only dependencies into this module.
  */
 
 export const SESSION_COOKIE = "pb_session";
@@ -79,41 +83,66 @@ async function sign(payload: string, secret: string): Promise<string> {
 
 export interface SessionPayload {
   username: string;
+  role: AccountRole;
   expiresAt: number;
 }
 
-function encodePayload(username: string, expiresAt: number): string {
-  return `${expiresAt}.${toBase64Url(username)}`;
+const VALID_ROLES: readonly AccountRole[] = ["admin", "standard", "search_only"];
+
+/**
+ * Payload is `<expiresAt>.<username(base64url)>.<role(base64url)>` — the
+ * role segment is appended after username rather than replacing the old
+ * two-segment shape, so a token signed before this change (no role
+ * segment) still splits cleanly on `.` and falls through to the
+ * fail-open default in decodePayload below.
+ */
+function encodePayload(username: string, role: AccountRole, expiresAt: number): string {
+  return `${expiresAt}.${toBase64Url(username)}.${toBase64Url(role)}`;
 }
 
 function decodePayload(payload: string): SessionPayload | null {
-  const separator = payload.indexOf(".");
-  if (separator <= 0) return null;
+  const parts = payload.split(".");
+  if (parts.length < 2) return null;
 
-  const expiresAt = Number(payload.slice(0, separator));
+  const expiresAt = Number(parts[0]);
   if (!Number.isSafeInteger(expiresAt)) return null;
 
-  const username = fromBase64Url(payload.slice(separator + 1));
+  const username = fromBase64Url(parts[1]);
   if (username === null || username.length === 0) return null;
 
-  return { username, expiresAt };
+  // A token signed before roles existed has no third segment. Fail open to
+  // "standard" (this session's owner had full access a moment before this
+  // change shipped), not closed to "search_only" — see design.md §Migration
+  // Plan step 2. An unrecognized or corrupt role segment gets the same
+  // fail-open treatment rather than invalidating an otherwise-valid,
+  // correctly-signed token.
+  let role: AccountRole = "standard";
+  if (parts.length >= 3) {
+    const decodedRole = fromBase64Url(parts[2]);
+    if (decodedRole !== null && (VALID_ROLES as readonly string[]).includes(decodedRole)) {
+      role = decodedRole as AccountRole;
+    }
+  }
+
+  return { username, role, expiresAt };
 }
 
 /**
- * Mint a session token: `<expiry>.<username(base64url)>.<hmac>`.
+ * Mint a session token: `<expiry>.<username(base64url)>.<role(base64url)>.<hmac>`.
  *
- * Both expiry and username are inside the signed payload, so a client cannot
- * extend its own session or swap identities by editing the cookie —
- * tampering with either invalidates the signature.
+ * Expiry, username, and role are all inside the signed payload, so a client
+ * cannot extend its own session, swap identities, or escalate its role by
+ * editing the cookie — tampering with any of them invalidates the signature.
  */
 export async function createSessionToken(
   secret: string,
   username: string,
+  role: AccountRole,
   ttlSeconds: number = SESSION_TTL_SECONDS,
   now: number = Date.now(),
 ): Promise<string> {
   const expiresAt = Math.floor(now / 1000) + ttlSeconds;
-  const payload = encodePayload(username, expiresAt);
+  const payload = encodePayload(username, role, expiresAt);
   return `${payload}.${await sign(payload, secret)}`;
 }
 

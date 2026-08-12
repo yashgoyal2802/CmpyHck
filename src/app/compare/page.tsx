@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { ComparisonWorkspace } from "@/components/ComparisonWorkspace";
-import { getSessionUser } from "@/lib/auth/server";
+import { getSessionAccount } from "@/lib/auth/server";
 
 export default async function ComparePage() {
-  const username = await getSessionUser();
-  if (!username) redirect("/signin");
+  const account = await getSessionAccount();
+  if (!account) redirect("/signin");
 
   return (
     <>
-      <AppHeader username={username} active="compare" />
+      <AppHeader username={account.username} role={account.role} active="compare" />
       <main className="pt-16 min-h-screen bg-surface">
         <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-12 flex flex-col gap-12">
           <div className="flex flex-col gap-3">

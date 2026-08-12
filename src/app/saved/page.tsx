@@ -1,19 +1,19 @@
 import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { SavedList } from "@/components/SavedList";
-import { getSessionUser } from "@/lib/auth/server";
+import { getSessionAccount } from "@/lib/auth/server";
 import { getStorage } from "@/lib/storage";
 
 export default async function SavedPage() {
-  const username = await getSessionUser();
-  if (!username) redirect("/signin");
+  const account = await getSessionAccount();
+  if (!account) redirect("/signin");
 
-  const entries = await getStorage().listOrganizerEntries(username);
+  const entries = await getStorage().listOrganizerEntries(account.username);
   const saved = entries.filter((e) => e.bookmarked);
 
   return (
     <>
-      <AppHeader username={username} active="saved" />
+      <AppHeader username={account.username} role={account.role} active="saved" />
       <main className="pt-16 min-h-screen bg-surface">
         <div className="max-w-container-max mx-auto px-4 md:px-6 py-12 flex flex-col gap-8">
           <div className="flex flex-col gap-3">

@@ -2,18 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { OrganizerBoard } from "@/components/OrganizerBoard";
-import { getSessionUser } from "@/lib/auth/server";
+import { getSessionAccount } from "@/lib/auth/server";
 import { getStorage } from "@/lib/storage";
 
 export default async function OrganizerPage() {
-  const username = await getSessionUser();
-  if (!username) redirect("/signin");
+  const account = await getSessionAccount();
+  if (!account) redirect("/signin");
 
-  const entries = await getStorage().listOrganizerEntries(username);
+  const entries = await getStorage().listOrganizerEntries(account.username);
 
   return (
     <>
-      <AppHeader username={username} active="organizer" />
+      <AppHeader username={account.username} role={account.role} active="organizer" />
       <main className="pt-16 min-h-screen bg-surface relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10" aria-hidden="true">
           <div className="absolute -top-64 -right-64 w-96 h-96 bg-primary opacity-5 rounded-full blur-3xl" />

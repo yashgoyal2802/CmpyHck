@@ -2,6 +2,7 @@ import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
 import { frameworkSchema, type Framework, type NewsItem } from "@/lib/brief/types";
 import type {
   Account,
+  AccountRole,
   CompanyCacheEntry,
   LastSeenNews,
   OrganizerEntry,
@@ -75,6 +76,24 @@ const SCHEMA_STATEMENTS = [
   // backfill was verified against production data (design.md §Migration
   // Plan step 3) — safe to re-run, a no-op once the column is gone.
   `ALTER TABLE organizer_entries DROP COLUMN IF EXISTS prepped`,
+
+  // --- add-user-roles: role -----------------------------------------------
+  // Same additive-only, idempotent pattern as every prior schema change.
+  // Existing accounts backfill to 'standard' via the column default itself
+  // (no separate UPDATE needed, unlike the prepped->status backfill) since
+  // every row gets the DEFAULT applied by ADD COLUMN when there's no
+  // explicit value. ACCOUNT_ROLES values are inlined here (SQL cannot
+  // reference the TS constant); keep this list in sync with
+  // src/lib/storage/types.ts.
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'standard'`,
+  `DO $$
+   BEGIN
+     ALTER TABLE accounts
+       ADD CONSTRAINT accounts_role_check
+       CHECK (role IN ('admin', 'standard', 'search_only'));
+   EXCEPTION
+     WHEN duplicate_object THEN NULL;
+   END $$`,
 ];
 
 let schemaReady: Promise<void> | null = null;
@@ -101,11 +120,11 @@ export function createPostgresStorage(options: PostgresStorageOptions): Storage 
     async getAccount(username) {
       await ready();
       const rows = await sql.query(
-        "SELECT username, password_hash FROM accounts WHERE username = $1",
+        "SELECT username, password_hash, role FROM accounts WHERE username = $1",
         [username],
       );
-      const row = rows[0] as { username: string; password_hash: string } | undefined;
-      return row ? { username: row.username, passwordHash: row.password_hash } : null;
+      const row = rows[0] as { username: string; password_hash: string; role: AccountRole } | undefined;
+      return row ? { username: row.username, passwordHash: row.password_hash, role: row.role } : null;
     },
 
     async getCompanyCache(companyKey) {

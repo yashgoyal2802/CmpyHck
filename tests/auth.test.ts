@@ -43,21 +43,21 @@ describe("password hashing", () => {
 describe("credential verification (task 5.2/5.3)", () => {
   it("admits a provisioned account with the correct password", async () => {
     const storage = createMemoryStorage({
-      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2") }],
+      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2"), role: "standard" }],
     });
     expect(await verifyCredentials("priya", "hunter2", storage)).toBe(true);
   });
 
   it("denies a provisioned account with the wrong password", async () => {
     const storage = createMemoryStorage({
-      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2") }],
+      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2"), role: "standard" }],
     });
     expect(await verifyCredentials("priya", "wrong", storage)).toBe(false);
   });
 
   it("denies an unknown username", async () => {
     const storage = createMemoryStorage({
-      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2") }],
+      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2"), role: "standard" }],
     });
     expect(await verifyCredentials("unknown", "hunter2", storage)).toBe(false);
   });
@@ -69,7 +69,7 @@ describe("credential verification (task 5.2/5.3)", () => {
 
   it("denies an empty submission", async () => {
     const storage = createMemoryStorage({
-      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2") }],
+      accounts: [{ username: "priya", passwordHash: await hashPassword("hunter2"), role: "standard" }],
     });
     expect(await verifyCredentials("", "hunter2", storage)).toBe(false);
     expect(await verifyCredentials("priya", "", storage)).toBe(false);
@@ -78,48 +78,61 @@ describe("credential verification (task 5.2/5.3)", () => {
 });
 
 describe("session tokens", () => {
-  it("accepts a token it just minted and returns the account's username", async () => {
-    const token = await createSessionToken(SECRET, "priya");
+  it("accepts a token it just minted and returns the account's username and role", async () => {
+    const token = await createSessionToken(SECRET, "priya", "standard");
     expect(await verifySessionToken(token, SECRET)).toEqual({
       username: "priya",
+      role: "standard",
       expiresAt: expect.any(Number),
     });
   });
 
   it("rejects a token signed with a different secret", async () => {
-    const token = await createSessionToken(SECRET, "priya");
+    const token = await createSessionToken(SECRET, "priya", "standard");
     expect(await verifySessionToken(token, "other-secret")).toBeNull();
   });
 
   it("rejects a tampered expiry, so a client cannot extend its own session", async () => {
     const now = Date.now();
-    const token = await createSessionToken(SECRET, "priya", SESSION_TTL_SECONDS, now);
+    const token = await createSessionToken(SECRET, "priya", "standard", SESSION_TTL_SECONDS, now);
     const signature = token.slice(token.lastIndexOf(".") + 1);
-    const usernameSegment = token.split(".")[1];
+    const [, usernameSegment, roleSegment] = token.split(".");
     const farFuture = Math.floor(now / 1000) + SESSION_TTL_SECONDS * 100;
 
     expect(
-      await verifySessionToken(`${farFuture}.${usernameSegment}.${signature}`, SECRET),
+      await verifySessionToken(`${farFuture}.${usernameSegment}.${roleSegment}.${signature}`, SECRET),
     ).toBeNull();
   });
 
   it("rejects a tampered username, so a client cannot swap identities", async () => {
     const now = Date.now();
-    const tokenA = await createSessionToken(SECRET, "priya", SESSION_TTL_SECONDS, now);
-    const tokenB = await createSessionToken(SECRET, "yash", SESSION_TTL_SECONDS, now);
-    const [expiresAtA] = tokenA.split(".");
+    const tokenA = await createSessionToken(SECRET, "priya", "standard", SESSION_TTL_SECONDS, now);
+    const tokenB = await createSessionToken(SECRET, "yash", "standard", SESSION_TTL_SECONDS, now);
+    const [expiresAtA, , roleA] = tokenA.split(".");
     const [, usernameB] = tokenB.split(".");
     const signatureA = tokenA.slice(tokenA.lastIndexOf(".") + 1);
 
     // Splice yash's username claim into priya's otherwise-valid token.
     expect(
-      await verifySessionToken(`${expiresAtA}.${usernameB}.${signatureA}`, SECRET),
+      await verifySessionToken(`${expiresAtA}.${usernameB}.${roleA}.${signatureA}`, SECRET),
+    ).toBeNull();
+  });
+
+  it("rejects a tampered role, so a client cannot escalate its own access", async () => {
+    const now = Date.now();
+    const token = await createSessionToken(SECRET, "priya", "search_only", SESSION_TTL_SECONDS, now);
+    const [expiresAt, usernameSegment] = token.split(".");
+    const signature = token.slice(token.lastIndexOf(".") + 1);
+    const corruptedRoleSegment = token.split(".")[2].replace(/./, "x");
+
+    expect(
+      await verifySessionToken(`${expiresAt}.${usernameSegment}.${corruptedRoleSegment}.${signature}`, SECRET),
     ).toBeNull();
   });
 
   it("rejects an expired token", async () => {
     const issuedAt = Date.now();
-    const token = await createSessionToken(SECRET, "priya", 60, issuedAt);
+    const token = await createSessionToken(SECRET, "priya", "standard", 60, issuedAt);
 
     expect(await verifySessionToken(token, SECRET, issuedAt + 30_000)).not.toBeNull();
     expect(await verifySessionToken(token, SECRET, issuedAt + 61_000)).toBeNull();
@@ -134,9 +147,36 @@ describe("session tokens", () => {
   });
 
   it("rejects any token when no secret is configured", async () => {
-    const token = await createSessionToken(SECRET, "priya");
+    const token = await createSessionToken(SECRET, "priya", "standard");
     expect(await verifySessionToken(token, undefined)).toBeNull();
     expect(await verifySessionToken(token, "")).toBeNull();
+  });
+
+  it("treats a pre-roles token (no role segment) as standard rather than rejecting it", async () => {
+    // Simulates a session signed before this change: payload has only
+    // <expiresAt>.<username>, no role segment.
+    const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+    const legacyPayload = `${expiresAt}.${Buffer.from("priya").toString("base64url")}`;
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const signatureBytes = new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(legacyPayload)),
+    );
+    const signatureHex = Array.from(signatureBytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const legacyToken = `${legacyPayload}.${signatureHex}`;
+
+    expect(await verifySessionToken(legacyToken, SECRET)).toEqual({
+      username: "priya",
+      role: "standard",
+      expiresAt,
+    });
   });
 });
 

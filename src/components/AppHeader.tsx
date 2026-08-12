@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
 import { endSession } from "@/lib/auth/server";
+import type { AccountRole } from "@/lib/storage/types";
 
 const NAV_ITEMS = [
   { href: "/", label: "Search", key: "search" },
@@ -14,10 +15,15 @@ const NAV_ITEMS = [
 export function AppHeader({
   username,
   active,
+  role,
 }: {
   username: string;
   active: (typeof NAV_ITEMS)[number]["key"];
+  role: AccountRole;
 }) {
+  // Cosmetic consistency with what middleware actually enforces, not the
+  // enforcement itself — see design.md (add-user-roles) §Decision 3.
+  const visibleNavItems = role === "search_only" ? NAV_ITEMS.filter((item) => item.key === "search") : NAV_ITEMS;
   async function signOut() {
     "use server";
     await endSession();
@@ -37,7 +43,7 @@ export function AppHeader({
         </Link>
 
         <nav className="flex items-center gap-4 md:gap-12 h-full overflow-x-auto">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <Link
               key={item.key}
               href={item.href}

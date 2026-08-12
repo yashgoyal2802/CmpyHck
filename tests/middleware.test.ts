@@ -1,0 +1,76 @@
+import { NextRequest } from "next/server";
+import { describe, expect, it } from "vitest";
+import { middleware } from "@/middleware";
+import { SESSION_COOKIE, createSessionToken } from "@/lib/auth/session";
+import type { AccountRole } from "@/lib/storage/types";
+
+const SECRET = "test-signing-secret";
+const ORIGIN = "http://localhost:3000";
+
+async function requestWithSession(path: string, role: AccountRole | null, init?: { api?: boolean }) {
+  const request = new NextRequest(new URL(path, ORIGIN));
+  if (role) {
+    const token = await createSessionToken(SECRET, "priya", role);
+    request.cookies.set(SESSION_COOKIE, token);
+  }
+  const originalSecret = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = SECRET;
+  try {
+    return await middleware(request);
+  } finally {
+    process.env.AUTH_SECRET = originalSecret;
+  }
+}
+
+describe("middleware role gating (add-user-roles task 6.1)", () => {
+  it("redirects an unauthenticated page request to /signin", async () => {
+    const response = await requestWithSession("/organizer", null);
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/signin");
+  });
+
+  it("returns 401 for an unauthenticated API request", async () => {
+    const response = await requestWithSession("/api/organizer", null);
+    expect(response.status).toBe(401);
+  });
+
+  for (const role of ["admin", "standard"] as const) {
+    it(`lets a ${role} account reach every gated page`, async () => {
+      for (const path of ["/", "/organizer", "/compare", "/saved"]) {
+        const response = await requestWithSession(path, role);
+        expect(response.status).not.toBe(307);
+        expect(response.status).not.toBe(403);
+      }
+    });
+  }
+
+  it("lets a search_only account reach the search page", async () => {
+    const response = await requestWithSession("/", "search_only");
+    expect(response.status).not.toBe(307);
+    expect(response.status).not.toBe(403);
+  });
+
+  it("lets a search_only account use the briefs API", async () => {
+    const response = await requestWithSession("/api/briefs/anything", "search_only");
+    expect(response.status).not.toBe(403);
+  });
+
+  for (const path of ["/organizer", "/compare", "/saved"]) {
+    it(`redirects a search_only account away from ${path} rather than to /signin`, async () => {
+      const response = await requestWithSession(path, "search_only");
+      expect(response.status).toBe(307);
+      const location = response.headers.get("location");
+      expect(location).not.toContain("/signin");
+      expect(new URL(location!).pathname).toBe("/");
+    });
+  }
+
+  for (const path of ["/api/organizer", "/api/comparison"]) {
+    it(`denies a search_only account's ${path} request with 403, not 401`, async () => {
+      const response = await requestWithSession(path, "search_only");
+      expect(response.status).toBe(403);
+      const body = await response.json();
+      expect(body.error.kind).toBe("forbidden");
+    });
+  }
+});

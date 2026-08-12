@@ -28,7 +28,14 @@ export default async function SignInPage({
     // "wrong password" would tell an outsider which one to keep guessing at.
     if (!ok || typeof username !== "string") redirect("/signin?error=1");
 
-    await startSession(username.trim());
+    const trimmedUsername = username.trim();
+    const account = await getStorage().getAccount(trimmedUsername);
+    // verifyCredentials just confirmed this account exists and the password
+    // matched, so a missing account here would mean storage changed under
+    // us mid-request — fail the same way a bad credential does.
+    if (!account) redirect("/signin?error=1");
+
+    await startSession(trimmedUsername, account.role);
     redirect("/");
   }
 

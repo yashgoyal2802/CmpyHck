@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { BriefWorkspace } from "@/components/BriefWorkspace";
-import { getSessionUser } from "@/lib/auth/server";
+import { getSessionAccount } from "@/lib/auth/server";
 
 /**
  * The first screen is the working app, not a landing page: input, research
@@ -15,14 +15,14 @@ export default async function HomePage({
 }: Readonly<{
   searchParams: Promise<{ company?: string }>;
 }>) {
-  const username = await getSessionUser();
-  if (!username) redirect("/signin");
+  const account = await getSessionAccount();
+  if (!account) redirect("/signin");
 
   const { company } = await searchParams;
 
   return (
     <>
-      <AppHeader username={username} active="search" />
+      <AppHeader username={account.username} role={account.role} active="search" />
       <main className="pt-16 min-h-screen bg-surface relative overflow-hidden">
         <div
           className="absolute top-0 right-0 w-3/4 h-[600px] bg-gradient-to-bl from-primary-fixed-dim/30 via-transparent to-transparent blur-3xl -z-10 pointer-events-none rounded-bl-full"

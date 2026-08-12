@@ -2,7 +2,7 @@ import { randomBytes, scryptSync } from "node:crypto";
 import { BriefError } from "@/lib/brief/errors";
 import { createMemoryStorage } from "./memory";
 import { createPostgresStorage } from "./postgres";
-import type { Storage } from "./types";
+import type { AccountRole, Storage } from "./types";
 
 /** Same format as src/lib/auth/password.ts, computed synchronously for startup seeding only. */
 function hashPasswordSync(password: string): string {
@@ -12,9 +12,10 @@ function hashPasswordSync(password: string): string {
 }
 
 export type { Storage } from "./types";
-export { ORGANIZER_STATUSES } from "./types";
+export { ACCOUNT_ROLES, ORGANIZER_STATUSES } from "./types";
 export type {
   Account,
+  AccountRole,
   CompanyCacheEntry,
   ConfidenceRating,
   LastSeenNews,
@@ -22,6 +23,10 @@ export type {
   OrganizerEntryInput,
   OrganizerStatus,
 } from "./types";
+
+function isAccountRole(value: string | undefined): value is AccountRole {
+  return value === "admin" || value === "standard" || value === "search_only";
+}
 
 let cached: Storage | null = null;
 
@@ -40,11 +45,20 @@ export function getStorage(env: NodeJS.ProcessEnv = process.env): Storage {
   if (env.STORAGE_PROVIDER === "memory") {
     // Dev-only convenience: seed one account from env so local testing
     // without a database doesn't also require hand-editing storage code.
+    // DEV_ACCOUNT_ROLE defaults to "standard" (matching the DB column
+    // default) but can be set to "admin" to exercise admin-only behavior
+    // locally without a real provisioning run.
     const devUsername = env.DEV_ACCOUNT_USERNAME?.trim();
     const devPassword = env.DEV_ACCOUNT_PASSWORD;
+    const devRoleRaw = env.DEV_ACCOUNT_ROLE?.trim();
+    const devRole: AccountRole = isAccountRole(devRoleRaw) ? devRoleRaw : "standard";
     cached = createMemoryStorage(
       devUsername && devPassword
-        ? { accounts: [{ username: devUsername, passwordHash: hashPasswordSync(devPassword) }] }
+        ? {
+            accounts: [
+              { username: devUsername, passwordHash: hashPasswordSync(devPassword), role: devRole },
+            ],
+          }
         : undefined,
     );
     return cached;
