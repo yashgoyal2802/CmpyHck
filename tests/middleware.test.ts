@@ -55,6 +55,11 @@ describe("middleware role gating (add-user-roles task 6.1)", () => {
     expect(response.status).not.toBe(403);
   });
 
+  it("lets a search_only account hit the briefs API with no trailing path segment", async () => {
+    const response = await requestWithSession("/api/briefs", "search_only");
+    expect(response.status).not.toBe(403);
+  });
+
   for (const path of ["/organizer", "/compare", "/saved"]) {
     it(`redirects a search_only account away from ${path} rather than to /signin`, async () => {
       const response = await requestWithSession(path, "search_only");

@@ -13,7 +13,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 /** The only paths a search_only account may reach: the search page itself and its API. */
 function isAllowedForSearchOnly(pathname: string): boolean {
-  return pathname === "/" || pathname.startsWith("/api/briefs/");
+  return pathname === "/" || pathname === "/api/briefs" || pathname.startsWith("/api/briefs/");
 }
 
 export async function middleware(request: NextRequest) {
