@@ -5,6 +5,7 @@ import { isAuthConfigured } from "@/lib/auth/session";
 import { getStorage } from "@/lib/storage";
 import { PasswordField } from "@/components/PasswordField";
 import { SignInMascot } from "@/components/SignInMascot";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default async function SignInPage({
   searchParams,
@@ -50,7 +51,11 @@ export default async function SignInPage({
   }
 
   return (
-    <main className="min-h-screen bg-surface grid place-items-center px-4">
+    <main className="relative min-h-screen bg-surface grid place-items-center px-4">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+
       <div className="w-full max-w-md flex flex-col items-center">
         {/* Negative margin pulls the card up to overlap the mascot's lower
             portion; the card's opaque background (relative z-10 over the
