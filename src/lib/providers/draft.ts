@@ -6,6 +6,7 @@ import {
   frameworkSchema,
   interviewerQuestionSchema,
   newsSectionSchema,
+  providerUsedSchema,
   talkingPointSchema,
 } from "@/lib/brief/types";
 
@@ -31,6 +32,8 @@ export const briefDraftSchema = z.object({
   talkingPoints: z.array(talkingPointSchema),
   interviewerQuestions: z.array(interviewerQuestionSchema),
   unavailableNotes: z.array(z.string()).default([]),
+  /** Set by provider code after parsing, never requested from the model - see add-openrouter-fallback-provider. */
+  providerUsed: providerUsedSchema.optional(),
 });
 
 export type BriefDraft = z.infer<typeof briefDraftSchema>;
@@ -47,6 +50,8 @@ export const cacheDraftSchema = z.object({
   talkingPoints: z.array(talkingPointSchema),
   interviewerQuestions: z.array(interviewerQuestionSchema),
   unavailableNotes: z.array(z.string()).default([]),
+  /** Set by provider code after parsing, never requested from the model - see add-openrouter-fallback-provider. */
+  providerUsed: providerUsedSchema.optional(),
 });
 
 export type CacheDraft = z.infer<typeof cacheDraftSchema>;

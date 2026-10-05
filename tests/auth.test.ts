@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifyCredentials } from "@/lib/auth/credentials";
+import { accountRequiresApiKey, verifyCredentials } from "@/lib/auth/credentials";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import {
   SESSION_TTL_SECONDS,
@@ -77,6 +77,17 @@ describe("credential verification (task 5.2/5.3)", () => {
   });
 });
 
+describe("Gemini API key requirement by role (add-per-session-gemini-key task 6.1/6.2)", () => {
+  it("requires a key for standard and search_only accounts", () => {
+    expect(accountRequiresApiKey("standard")).toBe(true);
+    expect(accountRequiresApiKey("search_only")).toBe(true);
+  });
+
+  it("does not require a key for the admin account", () => {
+    expect(accountRequiresApiKey("admin")).toBe(false);
+  });
+});
+
 describe("session tokens", () => {
   it("accepts a token it just minted and returns the account's username and role", async () => {
     const token = await createSessionToken(SECRET, "priya", "standard");
@@ -150,6 +161,60 @@ describe("session tokens", () => {
     const token = await createSessionToken(SECRET, "priya", "standard");
     expect(await verifySessionToken(token, undefined)).toBeNull();
     expect(await verifySessionToken(token, "")).toBeNull();
+  });
+
+  it("carries a non-admin session's Gemini API key through a round trip", async () => {
+    const token = await createSessionToken(
+      SECRET,
+      "priya",
+      "standard",
+      SESSION_TTL_SECONDS,
+      Date.now(),
+      "my-gemini-key",
+    );
+    expect(await verifySessionToken(token, SECRET)).toEqual({
+      username: "priya",
+      role: "standard",
+      expiresAt: expect.any(Number),
+      apiKey: "my-gemini-key",
+    });
+  });
+
+  it("omits the key segment when createSessionToken is called with no key (the admin path via startSession)", async () => {
+    const token = await createSessionToken(SECRET, "owner", "admin");
+    // expiresAt, username, role, hmac - no 4th (key) segment.
+    expect(token.split(".")).toHaveLength(4);
+  });
+
+  it("rejects a tampered API key segment, so a client cannot swap in another session's key", async () => {
+    const now = Date.now();
+    const tokenA = await createSessionToken(SECRET, "priya", "standard", SESSION_TTL_SECONDS, now, "key-a");
+    const tokenB = await createSessionToken(SECRET, "priya", "standard", SESSION_TTL_SECONDS, now, "key-b");
+    const [expiresAt, username, role] = tokenA.split(".");
+    const [, , , apiKeySegmentB] = tokenB.split(".");
+    const signatureA = tokenA.slice(tokenA.lastIndexOf(".") + 1);
+
+    // Splice session B's encrypted key into session A's otherwise-valid token.
+    expect(
+      await verifySessionToken(`${expiresAt}.${username}.${role}.${apiKeySegmentB}.${signatureA}`, SECRET),
+    ).toBeNull();
+  });
+
+  it("decodes a pre-this-change non-admin token (no key segment) with no apiKey, rather than failing", async () => {
+    // Simulates a session signed before this change: 3 segments, no key.
+    const token = await createSessionToken(SECRET, "priya", "standard");
+    expect(token.split(".")).toHaveLength(4); // expiresAt, username, role, hmac
+    const decoded = await verifySessionToken(token, SECRET);
+    expect(decoded?.apiKey).toBeUndefined();
+  });
+
+  it("two sessions for the same account each decode to their own independently-submitted key", async () => {
+    const now = Date.now();
+    const tokenA = await createSessionToken(SECRET, "test1", "standard", SESSION_TTL_SECONDS, now, "alice-key");
+    const tokenB = await createSessionToken(SECRET, "test1", "standard", SESSION_TTL_SECONDS, now, "bob-key");
+
+    expect((await verifySessionToken(tokenA, SECRET))?.apiKey).toBe("alice-key");
+    expect((await verifySessionToken(tokenB, SECRET))?.apiKey).toBe("bob-key");
   });
 
   it("treats a pre-roles token (no role segment) as standard rather than rejecting it", async () => {

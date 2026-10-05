@@ -22,8 +22,18 @@ import type {
  * Default model. Verify against current Google docs before relying on it — the
  * requirement is a model that supports BOTH Google Search grounding and JSON
  * response schemas, and that has a usable free tier. Override with GEMINI_MODEL.
+ *
+ * gemini-2.5-flash is no longer available to newly-created Gemini API keys
+ * (Google returns a 404 directing new keys to this model) - only older,
+ * grandfathered keys could still reach it. Since add-per-session-gemini-key
+ * means most keys in use are freshly created by whoever signs in, the
+ * default needs to be a model every key can reach, not just old ones.
+ * gemini-3.8-flash is listed as stable/GA but hit an immediate 429 on a
+ * brand-new free-tier project in testing (cause unconfirmed - possibly a
+ * new-project quota propagation delay, possibly a stricter free quota on
+ * Google Search grounding specifically); trying gemini-3.6-flash instead.
  */
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 
 export interface GeminiProviderOptions {
   apiKey: string;
@@ -141,7 +151,7 @@ export function createGeminiProvider(
       }
 
       // The pipeline owns assembly; this stage returns the model-authored slice.
-      return result.data;
+      return { ...result.data, providerUsed: { name: "gemini", model } };
     },
 
     /** Cache-hit stage one: grounded search scoped to recent news only. */
@@ -217,7 +227,7 @@ export function createGeminiProvider(
         );
       }
 
-      return result.data;
+      return { ...result.data, providerUsed: { name: "gemini", model } };
     },
   };
 }

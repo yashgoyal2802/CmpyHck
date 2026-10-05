@@ -196,6 +196,7 @@ async function tryCacheHit(input: {
     talkingPoints: cacheDraft.talkingPoints,
     interviewerQuestions: cacheDraft.interviewerQuestions,
     unavailableNotes: cacheDraft.unavailableNotes,
+    providerUsed: cacheDraft.providerUsed,
   };
 
   const generatedAt = now().toISOString();

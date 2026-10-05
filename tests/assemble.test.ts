@@ -207,4 +207,18 @@ describe("assembled output", () => {
 
     expect(assemble(draft).resolvedName).toBe("Testco");
   });
+
+  it("carries providerUsed through from the draft (add-openrouter-fallback-provider task 6.3)", () => {
+    const draft = baseDraft();
+    draft.providerUsed = { name: "openrouter", model: "test-model" };
+
+    expect(assemble(draft).providerUsed).toEqual({ name: "openrouter", model: "test-model" });
+  });
+
+  it("leaves providerUsed absent when the draft didn't set one", () => {
+    const draft = baseDraft();
+    delete draft.providerUsed;
+
+    expect(assemble(draft).providerUsed).toBeUndefined();
+  });
 });

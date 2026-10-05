@@ -7,10 +7,25 @@ import type { AccountRole } from "@/lib/storage/types";
 const SECRET = "test-signing-secret";
 const ORIGIN = "http://localhost:3000";
 
-async function requestWithSession(path: string, role: AccountRole | null, init?: { api?: boolean }) {
+/**
+ * Builds a request with a session cookie. Non-admin roles get a dummy API
+ * key by default, since a keyless non-admin session is now treated as
+ * unauthenticated - pass `apiKey: null` to opt out and exercise that case.
+ */
+async function requestWithSession(
+  path: string,
+  role: AccountRole | null,
+  options?: { apiKey?: string | null },
+) {
   const request = new NextRequest(new URL(path, ORIGIN));
   if (role) {
-    const token = await createSessionToken(SECRET, "priya", role);
+    const apiKey =
+      options && "apiKey" in options
+        ? (options.apiKey ?? undefined)
+        : role === "admin"
+          ? undefined
+          : "dummy-gemini-key";
+    const token = await createSessionToken(SECRET, "priya", role, undefined, undefined, apiKey);
     request.cookies.set(SESSION_COOKIE, token);
   }
   const originalSecret = process.env.AUTH_SECRET;
@@ -78,4 +93,31 @@ describe("middleware role gating (add-user-roles task 6.1)", () => {
       expect(body.error.kind).toBe("forbidden");
     });
   }
+});
+
+describe("middleware session-key gating (add-per-session-gemini-key task 3.2)", () => {
+  for (const role of ["standard", "search_only"] as const) {
+    it(`treats a keyless ${role} session as unauthenticated on a page request`, async () => {
+      const response = await requestWithSession("/", role, { apiKey: null });
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toContain("/signin");
+    });
+
+    it(`treats a keyless ${role} session as unauthenticated on an API request`, async () => {
+      const response = await requestWithSession("/api/briefs", role, { apiKey: null });
+      expect(response.status).toBe(401);
+    });
+
+    it(`lets a ${role} session with a key proceed as usual`, async () => {
+      const response = await requestWithSession("/", role, { apiKey: "a-real-key" });
+      expect(response.status).not.toBe(307);
+      expect(response.status).not.toBe(401);
+    });
+  }
+
+  it("an admin session with no key is unaffected", async () => {
+    const response = await requestWithSession("/", "admin", { apiKey: null });
+    expect(response.status).not.toBe(307);
+    expect(response.status).not.toBe(401);
+  });
 });

@@ -378,6 +378,11 @@ export function BriefView({
                 : "Freshly researched."}
             </p>
           )}
+          {brief.providerUsed && (
+            <p className="text-xs text-on-surface-variant">
+              Generated with {brief.providerUsed.name === "gemini" ? "Gemini" : "OpenRouter (fallback)"}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <BookmarkButton companyKey={brief.companyKey} resolvedName={brief.resolvedName} />

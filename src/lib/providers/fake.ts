@@ -81,6 +81,7 @@ export function createFakeProvider(
           ...fixture.draft.deepDive,
           heading: request.plan.deepDiveHeading,
         },
+        providerUsed: { name: "fake" },
       };
     },
 
@@ -102,6 +103,7 @@ export function createFakeProvider(
         talkingPoints: fixture.draft.talkingPoints,
         interviewerQuestions: fixture.draft.interviewerQuestions,
         unavailableNotes: fixture.draft.unavailableNotes ?? [],
+        providerUsed: { name: "fake" },
       };
     },
   };

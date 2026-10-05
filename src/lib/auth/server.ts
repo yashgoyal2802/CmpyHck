@@ -12,6 +12,8 @@ import {
 export interface SessionAccount {
   username: string;
   role: AccountRole;
+  /** This session's own Gemini API key. Present only for non-admin sessions. */
+  apiKey?: string;
 }
 
 /** The signed-in account's identity and role, or null if there is no valid session. */
@@ -21,7 +23,10 @@ export async function getSessionAccount(): Promise<SessionAccount | null> {
     jar.get(SESSION_COOKIE)?.value,
     process.env.AUTH_SECRET,
   );
-  return session ? { username: session.username, role: session.role } : null;
+  if (!session) return null;
+  return session.apiKey !== undefined
+    ? { username: session.username, role: session.role, apiKey: session.apiKey }
+    : { username: session.username, role: session.role };
 }
 
 /** The signed-in account's username, or null if there is no valid session. Most call sites only need this. */
@@ -34,12 +39,24 @@ export async function hasValidSession(): Promise<boolean> {
   return (await getSessionUser()) !== null;
 }
 
-export async function startSession(username: string, role: AccountRole): Promise<void> {
+export async function startSession(
+  username: string,
+  role: AccountRole,
+  apiKey?: string,
+): Promise<void> {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw new Error("AUTH_SECRET is not set.");
 
   const jar = await cookies();
-  jar.set(SESSION_COOKIE, await createSessionToken(secret, username, role), {
+  const token = await createSessionToken(
+    secret,
+    username,
+    role,
+    SESSION_TTL_SECONDS,
+    Date.now(),
+    role === "admin" ? undefined : apiKey,
+  );
+  jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

@@ -142,6 +142,7 @@ export function assembleBrief(input: AssembleInput): CompanyBrief {
     interviewerQuestions,
     sources,
     unavailableNotes: dedupe(notes),
+    providerUsed: draft.providerUsed,
   };
 
   // Final gate: what the UI renders is always schema-valid.

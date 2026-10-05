@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth/server";
-import { HTTP_STATUS, USER_MESSAGE, toBriefError } from "@/lib/brief/errors";
+import { getSessionAccount } from "@/lib/auth/server";
+import { BriefError, HTTP_STATUS, USER_MESSAGE, toBriefError } from "@/lib/brief/errors";
 import { generateBrief } from "@/lib/brief/pipeline";
-import { getProvider } from "@/lib/providers";
+import { getProvider, getProviderForApiKey } from "@/lib/providers";
 import { getStorage } from "@/lib/storage";
 
 /** Grounded research is slow; give it room before the platform cuts us off. */
@@ -11,7 +11,8 @@ export const maxDuration = 120;
 export async function POST(request: Request) {
   // Middleware already gates this route. Re-checking here is defence in depth:
   // this handler burns research quota, so it should never rely on a single gate.
-  if (!(await getSessionUser())) {
+  const session = await getSessionAccount();
+  if (!session) {
     return NextResponse.json(
       {
         error: {
@@ -37,9 +38,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Admin uses the server's own key; every other role supplied its own at
+    // login (middleware already refuses a non-admin session with no key, so
+    // this is a defensive-depth check, not the primary enforcement point).
+    if (session.role !== "admin" && !session.apiKey) {
+      throw new BriefError(
+        "not_configured",
+        "Your session has no Gemini API key. Sign in again to provide one.",
+      );
+    }
+    const provider = session.role === "admin" ? getProvider() : getProviderForApiKey(session.apiKey!);
+
     const ttlEnv = Number(process.env.CACHE_TTL_SECONDS);
     const brief = await generateBrief(companyName, {
-      provider: getProvider(),
+      provider,
       storage: getStorage(),
       forceRefresh,
       ...(Number.isFinite(ttlEnv) && ttlEnv > 0 ? { cacheTtlSeconds: ttlEnv } : {}),

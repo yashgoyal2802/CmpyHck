@@ -17,6 +17,13 @@ import { SECTORS } from "./sectors";
 export const basisSchema = z.enum(["sourced", "inferred"]);
 export type Basis = z.infer<typeof basisSchema>;
 
+/** Which provider actually produced a brief's structuring stage — see add-openrouter-fallback-provider. */
+export const providerUsedSchema = z.object({
+  name: z.string(),
+  model: z.string().optional(),
+});
+export type ProviderUsed = z.infer<typeof providerUsedSchema>;
+
 export const sourceRefSchema = z.object({
   /** Stable within one brief, e.g. "s1" — referenced by `sourceIds`. */
   id: z.string().min(1),
@@ -183,5 +190,7 @@ export const companyBriefSchema = z.object({
   unavailableNotes: z.array(z.string()).default([]),
   /** Absent when generated without a storage layer (e.g. tests calling the pipeline directly). */
   cache: cacheInfoSchema.optional(),
+  /** Which provider produced this brief's structuring stage. Absent for briefs generated before this field existed. */
+  providerUsed: providerUsedSchema.optional(),
 });
 export type CompanyBrief = z.infer<typeof companyBriefSchema>;

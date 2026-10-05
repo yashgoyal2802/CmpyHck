@@ -21,7 +21,14 @@ export async function middleware(request: NextRequest) {
   const session = await verifySessionToken(token, process.env.AUTH_SECRET);
   const isApiRequest = request.nextUrl.pathname.startsWith("/api/");
 
-  if (!session) {
+  // A non-admin session with no API key is one of: a session minted before
+  // this change (migration case), or a corrupted/undecryptable key segment.
+  // Either way it cannot be used to generate a brief, so treat it exactly
+  // like no session at all and force a real re-login where the key is
+  // collected - see add-per-session-gemini-key design.md.
+  const isUsableSession = session && (session.role === "admin" || session.apiKey !== undefined);
+
+  if (!isUsableSession) {
     // API callers get a status they can act on; page requests get the sign-in form.
     if (isApiRequest) {
       return NextResponse.json(

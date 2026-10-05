@@ -161,3 +161,19 @@ describe("what's changed (task 7.8)", () => {
     expect(hit.cache?.newSinceLastSeen?.length).toBeGreaterThan(0);
   });
 });
+
+describe("provider provenance on a cache hit (add-openrouter-fallback-provider task 6.3)", () => {
+  it("carries providerUsed through the cache-hit path's manually-reconstructed draft", async () => {
+    const { provider, storage } = setup();
+
+    await generateBrief("Acme Consulting", { provider, storage, now });
+    const hit = await generateBrief("Acme Consulting", {
+      provider,
+      storage,
+      now: () => new Date("2026-08-07T00:00:00.000Z"),
+    });
+
+    expect(hit.cache).toMatchObject({ fromCache: true });
+    expect(hit.providerUsed).toEqual({ name: "fake" });
+  });
+});

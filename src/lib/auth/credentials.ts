@@ -1,4 +1,5 @@
 import type { Storage } from "@/lib/storage";
+import type { AccountRole } from "@/lib/storage/types";
 import { verifyPassword } from "./password";
 
 /**
@@ -26,4 +27,14 @@ export async function verifyCredentials(
   const account = await storage.getAccount(username);
   const passwordOk = await verifyPassword(password, account?.passwordHash ?? DUMMY_HASH);
   return passwordOk && account !== null;
+}
+
+/**
+ * Whether this role must supply its own Gemini API key at login.
+ *
+ * Only `admin` is exempt - it keeps using the server's own `GEMINI_API_KEY`.
+ * See add-per-session-gemini-key proposal.md.
+ */
+export function accountRequiresApiKey(role: AccountRole): boolean {
+  return role !== "admin";
 }

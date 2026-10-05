@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth/server";
+import { getSessionAccount } from "@/lib/auth/server";
 import { InvalidComparisonError, compareCompanies } from "@/lib/brief/compare";
-import { USER_MESSAGE } from "@/lib/brief/errors";
-import { getProvider } from "@/lib/providers";
+import { HTTP_STATUS, USER_MESSAGE } from "@/lib/brief/errors";
+import { getProvider, getProviderForApiKey } from "@/lib/providers";
 import { getStorage } from "@/lib/storage";
 
 /** Up to three parallel brief generations; give it the same room as a single brief. */
 export const maxDuration = 120;
 
 export async function POST(request: Request) {
-  if (!(await getSessionUser())) {
+  const session = await getSessionAccount();
+  if (!session) {
     return NextResponse.json(
       { error: { kind: "unauthorized", message: "Sign in to compare companies." } },
       { status: 401 },
+    );
+  }
+  // Defensive-depth: middleware already refuses a non-admin session with no
+  // key before this route is reached.
+  if (session.role !== "admin" && !session.apiKey) {
+    return NextResponse.json(
+      { error: { kind: "not_configured", message: USER_MESSAGE.not_configured } },
+      { status: HTTP_STATUS.not_configured },
     );
   }
 
@@ -35,8 +44,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    const provider = session.role === "admin" ? getProvider() : getProviderForApiKey(session.apiKey!);
     const results = await compareCompanies(companies, {
-      provider: getProvider(),
+      provider,
       storage: getStorage(),
     });
 

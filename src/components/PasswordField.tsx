@@ -12,11 +12,13 @@ export function PasswordField({
   name,
   autoComplete,
   placeholder,
+  required = true,
 }: {
   id: string;
   name: string;
   autoComplete?: string;
   placeholder?: string;
+  required?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -28,7 +30,7 @@ export function PasswordField({
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
         placeholder={placeholder}
-        required
+        required={required}
         className="w-full pl-4 pr-12 py-3 rounded-full bg-surface-container text-on-surface placeholder:text-on-surface-variant text-center focus:bg-surface-container-lowest transition-colors"
       />
       <button
