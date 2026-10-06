@@ -4,18 +4,18 @@
 Provide MBA students with a structured, placement-focused company research brief from a company name, tailored to the company's sector, so they can prepare for interviews using recent business context and sector-appropriate analysis.
 ## Requirements
 ### Requirement: Restricted access
-The system SHALL restrict use to holders of a configured shared passphrase, SHALL NOT offer public sign-up, and SHALL deny all access when access control is not configured.
+The system SHALL restrict use to holders of a provisioned account authenticated by username and password, SHALL NOT offer public sign-up, and SHALL deny all access when no accounts are provisioned.
 
-#### Scenario: Correct passphrase is submitted
-- **WHEN** a user submits the configured access passphrase
+#### Scenario: Correct credentials are submitted
+- **WHEN** a user submits a username and password matching a provisioned account
 - **THEN** the system grants access to the company research workflow for a bounded period
 
-#### Scenario: Incorrect passphrase is submitted
-- **WHEN** a user submits a passphrase that does not match the configured one
+#### Scenario: Incorrect credentials are submitted
+- **WHEN** a user submits a username and password that do not match any provisioned account
 - **THEN** the system denies access and does not generate a brief
 
-#### Scenario: Access control is not configured
-- **WHEN** no access passphrase is configured
+#### Scenario: No accounts are provisioned
+- **WHEN** no accounts have been provisioned
 - **THEN** the system denies all access rather than admitting everyone
 
 #### Scenario: Unauthenticated request reaches a protected route
