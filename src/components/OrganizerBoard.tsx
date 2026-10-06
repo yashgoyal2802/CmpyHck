@@ -12,7 +12,14 @@ import type { OrganizerEntry, OrganizerStatus } from "@/lib/storage";
  * no waiting on the server round-trip to see the effect. The API call
  * still happens, but only to persist; the UI never waits on it.
  */
-export function OrganizerBoard({ initialEntries }: { initialEntries: OrganizerEntry[] }) {
+export function OrganizerBoard({
+  initialEntries,
+  isDemo = false,
+}: {
+  initialEntries: OrganizerEntry[];
+  /** A credential-free demo session - see add-demo-mode. Empty by design (no real tracking); changes the empty-state message only. */
+  isDemo?: boolean;
+}) {
   const [entries, setEntries] = useState(initialEntries);
 
   async function handleStatusChange(companyKey: string, status: OrganizerStatus) {
@@ -71,7 +78,9 @@ export function OrganizerBoard({ initialEntries }: { initialEntries: OrganizerEn
   if (entries.length === 0) {
     return (
       <p className="text-on-surface-variant">
-        Nothing tracked yet. Search a company and use the tracker on its brief to add it here.
+        {isDemo
+          ? "Sign in to track companies here — this is disabled in the demo."
+          : "Nothing tracked yet. Search a company and use the tracker on its brief to add it here."}
       </p>
     );
   }

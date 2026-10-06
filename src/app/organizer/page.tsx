@@ -3,18 +3,25 @@ import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { OrganizerBoard } from "@/components/OrganizerBoard";
 import { getSessionAccount } from "@/lib/auth/server";
+import { DEMO_ORGANIZER_ENTRIES } from "@/lib/demo/organizerFixtures";
 import { getStorage } from "@/lib/storage";
 
 export default async function OrganizerPage() {
   const account = await getSessionAccount();
   if (!account) redirect("/signin");
 
-  const entries = await getStorage().listOrganizerEntries(account.username);
+  // A demo session never reads or writes real organizer storage - not even
+  // a read under the shared sentinel username - see add-demo-mode design.md.
+  // It does show the frozen fixture pipeline so the board's columns/stats
+  // are visible rather than an empty state. See organizerFixtures.ts.
+  const entries = account.isDemo ? DEMO_ORGANIZER_ENTRIES : await getStorage().listOrganizerEntries(account.username);
 
   return (
     <>
-      <AppHeader username={account.username} role={account.role} active="organizer" />
-      <main className="pt-16 min-h-screen bg-surface relative overflow-hidden">
+      <AppHeader username={account.username} role={account.role} active="organizer" isDemo={account.isDemo} />
+      <main
+        className={`${account.isDemo ? "pt-24" : "pt-16"} min-h-screen bg-surface relative overflow-hidden`}
+      >
         <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10" aria-hidden="true">
           <div className="absolute -top-64 -right-64 w-96 h-96 bg-primary opacity-5 rounded-full blur-3xl" />
           <div className="absolute top-1/3 -left-32 w-72 h-72 bg-secondary opacity-10 rounded-full blur-2xl" />
@@ -36,7 +43,7 @@ export default async function OrganizerPage() {
             </Link>
           </div>
 
-          <OrganizerBoard initialEntries={entries} />
+          <OrganizerBoard initialEntries={entries} isDemo={account.isDemo} />
         </div>
       </main>
     </>

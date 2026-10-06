@@ -152,26 +152,36 @@ export interface SessionPayload {
   expiresAt: number;
   /** A non-admin session's own Gemini API key. Always absent for admin sessions. */
   apiKey?: string;
+  /** A credential-free demo session - see add-demo-mode. Always absent (not just false) for a real session. */
+  isDemo?: boolean;
 }
 
 const VALID_ROLES: readonly AccountRole[] = ["admin", "standard", "search_only"];
 
 /**
- * Payload is `<expiresAt>.<username(base64url)>.<role(base64url)>.<apiKey(encrypted)?>` —
+ * Payload is `<expiresAt>.<username(base64url)>.<role(base64url)>.<apiKey(encrypted)?>.<isDemo?>` —
  * each new segment is appended after the previous ones rather than replacing
  * the prior shape, so a token signed before this change (no role or apiKey
  * segment) still splits cleanly on `.` and falls through to the fail-open
  * defaults in decodePayload below. The apiKey segment is present only for
  * non-admin sessions.
+ *
+ * A demo session never carries an apiKey (see add-demo-mode design.md), so
+ * its 4th segment is left an empty placeholder rather than omitted - that
+ * keeps the 5th segment (the demo flag) at a stable position, and leaves
+ * every existing 3- or 4-segment (non-demo) token shape completely
+ * untouched. This is the only reason a demo token has 5 segments at all.
  */
 async function encodePayload(
   username: string,
   role: AccountRole,
   expiresAt: number,
   apiKey: string | undefined,
+  isDemo: boolean,
   secret: string,
 ): Promise<string> {
   const base = `${expiresAt}.${toBase64Url(username)}.${toBase64Url(role)}`;
+  if (isDemo) return `${base}..1`;
   if (!apiKey) return base;
   return `${base}.${await encryptApiKey(apiKey, secret)}`;
 }
@@ -200,18 +210,29 @@ async function decodePayload(payload: string, secret: string): Promise<SessionPa
     }
   }
 
+  // A 5-segment payload is a demo token (see encodePayload) - segment 4 is
+  // always an empty placeholder in that case, never a real apiKey, so it's
+  // intentionally not passed to decryptApiKey.
+  const isDemo = parts.length >= 5 && parts[4] === "1";
+
   // A token with no 4th segment (admin session, or a non-admin session
   // signed before this change) simply has no key. A malformed/undecryptable
   // 4th segment is treated the same way rather than invalidating an
   // otherwise validly-signed token - see add-per-session-gemini-key
   // design.md.
   let apiKey: string | undefined;
-  if (parts.length >= 4) {
+  if (!isDemo && parts.length >= 4 && parts[3].length > 0) {
     const decrypted = await decryptApiKey(parts[3], secret);
     if (decrypted !== null) apiKey = decrypted;
   }
 
-  return apiKey !== undefined ? { username, role, expiresAt, apiKey } : { username, role, expiresAt };
+  return {
+    username,
+    role,
+    expiresAt,
+    ...(apiKey !== undefined ? { apiKey } : {}),
+    ...(isDemo ? { isDemo: true as const } : {}),
+  };
 }
 
 /**
@@ -229,9 +250,10 @@ export async function createSessionToken(
   ttlSeconds: number = SESSION_TTL_SECONDS,
   now: number = Date.now(),
   apiKey?: string,
+  isDemo: boolean = false,
 ): Promise<string> {
   const expiresAt = Math.floor(now / 1000) + ttlSeconds;
-  const payload = await encodePayload(username, role, expiresAt, apiKey, secret);
+  const payload = await encodePayload(username, role, expiresAt, apiKey, isDemo, secret);
   return `${payload}.${await sign(payload, secret)}`;
 }
 

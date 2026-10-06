@@ -25,8 +25,13 @@ export async function middleware(request: NextRequest) {
   // this change (migration case), or a corrupted/undecryptable key segment.
   // Either way it cannot be used to generate a brief, so treat it exactly
   // like no session at all and force a real re-login where the key is
-  // collected - see add-per-session-gemini-key design.md.
-  const isUsableSession = session && (session.role === "admin" || session.apiKey !== undefined);
+  // collected - see add-per-session-gemini-key design.md. A demo session is
+  // the one deliberate exception: it's non-admin and legitimately never
+  // carries a key, because it never calls a real provider at all - see
+  // add-demo-mode design.md. This is a narrow, additive clause, not a
+  // loosening of the rule above for any real (non-demo) session.
+  const isUsableSession =
+    session && (session.role === "admin" || session.apiKey !== undefined || session.isDemo);
 
   if (!isUsableSession) {
     // API callers get a status they can act on; page requests get the sign-in form.

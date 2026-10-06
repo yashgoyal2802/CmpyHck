@@ -16,6 +16,16 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   }
+  // A demo session is authenticated but not signed in to a real account -
+  // checked before the apiKey check below, which would otherwise wrongly
+  // reject it as "not configured" (a demo session has no key by design and
+  // never needs one). See add-demo-mode design.md.
+  if (session.isDemo) {
+    return NextResponse.json(
+      { error: { kind: "forbidden", message: "Sign in to compare companies." } },
+      { status: 403 },
+    );
+  }
   // Defensive-depth: middleware already refuses a non-admin session with no
   // key before this route is reached.
   if (session.role !== "admin" && !session.apiKey) {

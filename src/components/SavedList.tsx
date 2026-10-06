@@ -17,7 +17,14 @@ interface OrganizerEntrySummary {
  * bookmarked and actively tracked at once; "remove from saved" shouldn't
  * silently wipe out real interview-prep status the user may have set.
  */
-export function SavedList({ initialEntries }: { initialEntries: OrganizerEntry[] }) {
+export function SavedList({
+  initialEntries,
+  isDemo = false,
+}: {
+  initialEntries: OrganizerEntry[];
+  /** A credential-free demo session - see add-demo-mode. The saved page is frozen, so removing the one demo entry (with no way to get it back this session) is disabled rather than allowed. */
+  isDemo?: boolean;
+}) {
   const [entries, setEntries] = useState(initialEntries);
 
   async function handleRemove(companyKey: string, resolvedName: string) {
@@ -74,10 +81,11 @@ export function SavedList({ initialEntries }: { initialEntries: OrganizerEntry[]
           </Link>
           <button
             type="button"
-            onClick={() => void handleRemove(entry.companyKey, entry.resolvedName)}
-            aria-label={`Remove ${entry.resolvedName} from saved`}
-            title="Remove from saved"
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full text-tertiary hover:text-error hover:bg-error-container transition-colors"
+            onClick={() => !isDemo && void handleRemove(entry.companyKey, entry.resolvedName)}
+            disabled={isDemo}
+            aria-label={isDemo ? "Sign in to remove saved companies" : `Remove ${entry.resolvedName} from saved`}
+            title={isDemo ? "Sign in to remove saved companies" : "Remove from saved"}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full text-tertiary hover:text-error hover:bg-error-container transition-colors disabled:opacity-40 disabled:hover:text-tertiary disabled:hover:bg-transparent disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
               star

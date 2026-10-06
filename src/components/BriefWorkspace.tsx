@@ -12,7 +12,16 @@ import { useBriefSearch } from "./BriefSearchProvider";
  * here — so navigating to Compare/Organizer/Saved and back does not lose
  * an in-progress or completed search. This component just renders it.
  */
-export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) {
+/** Demo sessions only search fixture companies - see add-demo-mode. Varied sectors so the demo shows the sector-aware deep dive actually adapting. */
+const DEMO_EXAMPLES = ["Acme Consulting", "Northwind Foods", "Helios Tech"];
+
+export function BriefWorkspace({
+  initialCompany,
+  isDemo = false,
+}: {
+  initialCompany?: string;
+  isDemo?: boolean;
+}) {
   const { companyName, setCompanyName, validationError, error, brief, loading, lastSubmitted, run, runOnce } =
     useBriefSearch();
 
@@ -24,7 +33,9 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
     if (initialCompany) runOnce(initialCompany);
   }, [initialCompany, runOnce]);
 
-  const examples = ["Hindustan Unilever", "McKinsey & Company", "HDFC Bank"];
+  const examples = isDemo
+    ? DEMO_EXAMPLES
+    : ["Hindustan Unilever", "McKinsey & Company", "HDFC Bank"];
 
   return (
     <div className="w-full min-w-0 flex flex-col gap-6">
@@ -46,7 +57,7 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
           name="company"
           type="text"
           autoComplete="organization"
-          placeholder="Company name — e.g. Hindustan Unilever"
+          placeholder={`Company name — e.g. ${examples[0]}`}
           value={companyName}
           onChange={(event) => setCompanyName(event.target.value)}
           disabled={loading}
@@ -149,6 +160,7 @@ export function BriefWorkspace({ initialCompany }: { initialCompany?: string }) 
         <BriefView
           brief={brief}
           onForceRefresh={() => void run(lastSubmitted, true)}
+          isDemo={isDemo}
         />
       )}
     </div>

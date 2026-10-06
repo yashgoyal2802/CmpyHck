@@ -245,6 +245,79 @@ describe("session tokens", () => {
   });
 });
 
+describe("demo sessions (add-demo-mode task 1.5)", () => {
+  it("round-trips isDemo: true", async () => {
+    const token = await createSessionToken(
+      SECRET,
+      "__demo__",
+      "standard",
+      SESSION_TTL_SECONDS,
+      Date.now(),
+      undefined,
+      true,
+    );
+    expect(await verifySessionToken(token, SECRET)).toEqual({
+      username: "__demo__",
+      role: "standard",
+      expiresAt: expect.any(Number),
+      isDemo: true,
+    });
+  });
+
+  it("never carries an apiKey alongside isDemo, even if one were somehow passed", async () => {
+    const token = await createSessionToken(
+      SECRET,
+      "__demo__",
+      "standard",
+      SESSION_TTL_SECONDS,
+      Date.now(),
+      "should-be-ignored",
+      true,
+    );
+    const decoded = await verifySessionToken(token, SECRET);
+    expect(decoded?.isDemo).toBe(true);
+    expect(decoded?.apiKey).toBeUndefined();
+  });
+
+  it("leaves isDemo absent (not false) on every existing non-demo token shape", async () => {
+    const adminToken = await createSessionToken(SECRET, "owner", "admin");
+    const keyedToken = await createSessionToken(
+      SECRET,
+      "priya",
+      "standard",
+      SESSION_TTL_SECONDS,
+      Date.now(),
+      "a-key",
+    );
+    expect((await verifySessionToken(adminToken, SECRET))?.isDemo).toBeUndefined();
+    expect((await verifySessionToken(keyedToken, SECRET))?.isDemo).toBeUndefined();
+    // And the wire shape itself is byte-for-byte what it was before this
+    // change - 3 segments for admin, 4 for a keyed non-admin session.
+    expect(adminToken.split(".")).toHaveLength(4);
+    expect(keyedToken.split(".")).toHaveLength(5);
+  });
+
+  it("rejects a tampered demo flag, so a client cannot upgrade a real session into a demo one or vice versa", async () => {
+    const realToken = await createSessionToken(SECRET, "priya", "standard");
+    const demoToken = await createSessionToken(
+      SECRET,
+      "__demo__",
+      "standard",
+      SESSION_TTL_SECONDS,
+      Date.now(),
+      undefined,
+      true,
+    );
+    const [expiresAt, username, role] = realToken.split(".");
+    const [, , , emptySegment, demoFlagSegment] = demoToken.split(".");
+    const signature = realToken.slice(realToken.lastIndexOf(".") + 1);
+
+    // Splice the demo segments onto an otherwise-valid real token's payload.
+    const tampered = `${expiresAt}.${username}.${role}.${emptySegment}.${demoFlagSegment}.${signature}`;
+    expect(await verifySessionToken(tampered, SECRET)).toBeNull();
+  });
+});
+
 describe("configuration check", () => {
   it("requires the signing secret", () => {
     expect(isAuthConfigured({ AUTH_SECRET: "y" })).toBe(true);

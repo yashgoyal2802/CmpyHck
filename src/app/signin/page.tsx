@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { startSession } from "@/lib/auth/server";
+import { startDemoSession, startSession } from "@/lib/auth/server";
 import { accountRequiresApiKey, verifyCredentials } from "@/lib/auth/credentials";
 import { isAuthConfigured } from "@/lib/auth/session";
 import { getStorage } from "@/lib/storage";
@@ -47,6 +47,12 @@ export default async function SignInPage({
     }
 
     await startSession(trimmedUsername, account.role, accountRequiresApiKey(account.role) ? trimmedApiKey : undefined);
+    redirect("/");
+  }
+
+  async function enterDemo() {
+    "use server";
+    await startDemoSession();
     redirect("/");
   }
 
@@ -142,6 +148,19 @@ export default async function SignInPage({
               className="mt-1 px-6 py-3 rounded-full bg-primary text-on-primary font-semibold shadow-elevation-1 hover:brightness-95 hover:shadow-elevation-2 active:scale-[0.97] transition-[filter,box-shadow,transform]"
             >
               Enter
+            </button>
+          </form>
+
+          <div className="flex items-center gap-3 text-on-surface-variant text-xs before:h-px before:flex-1 before:bg-outline-variant after:h-px after:flex-1 after:bg-outline-variant">
+            or
+          </div>
+
+          <form action={enterDemo}>
+            <button
+              type="submit"
+              className="w-full px-6 py-3 rounded-full border border-outline-variant text-on-surface font-semibold hover:bg-surface-container active:scale-[0.97] transition-[background-color,transform]"
+            >
+              Have a look
             </button>
           </form>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/auth/server";
+import { getSessionAccount } from "@/lib/auth/server";
+import { DEMO_ORGANIZER_ENTRIES } from "@/lib/demo/organizerFixtures";
 import { getStorage, ORGANIZER_STATUSES, type ConfidenceRating, type OrganizerStatus } from "@/lib/storage";
 
 function unauthorized() {
@@ -9,11 +10,27 @@ function unauthorized() {
   );
 }
 
-export async function GET() {
-  const username = await getSessionUser();
-  if (!username) return unauthorized();
+/**
+ * A demo session is authenticated (middleware let it through) but not
+ * signed in to a real account - 403, not 401, matching how `search_only`'s
+ * restriction is already distinguished in middleware.ts.
+ */
+function demoRejected() {
+  return NextResponse.json(
+    { error: { kind: "forbidden", message: "Sign in to use the organizer." } },
+    { status: 403 },
+  );
+}
 
-  const entries = await getStorage().listOrganizerEntries(username);
+export async function GET() {
+  const session = await getSessionAccount();
+  if (!session) return unauthorized();
+
+  // A read, not a write - served from the same frozen fixture pipeline the
+  // organizer/saved pages show, never the real store. See organizerFixtures.ts.
+  if (session.isDemo) return NextResponse.json({ entries: DEMO_ORGANIZER_ENTRIES });
+
+  const entries = await getStorage().listOrganizerEntries(session.username);
   return NextResponse.json({ entries });
 }
 
@@ -31,8 +48,13 @@ function isOrganizerStatus(value: unknown): value is OrganizerStatus {
 }
 
 export async function POST(request: Request) {
-  const username = await getSessionUser();
-  if (!username) return unauthorized();
+  const session = await getSessionAccount();
+  if (!session) return unauthorized();
+  // `getSessionUser()`'s old truthy-username check would have let a demo
+  // session through to a real storage write here - see add-demo-mode
+  // design.md for why this needs its own explicit check.
+  if (session.isDemo) return demoRejected();
+  const username = session.username;
 
   let body: OrganizerUpsertBody;
   try {
@@ -93,8 +115,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const username = await getSessionUser();
-  if (!username) return unauthorized();
+  const session = await getSessionAccount();
+  if (!session) return unauthorized();
+  if (session.isDemo) return demoRejected();
 
   const companyKey = new URL(request.url).searchParams.get("companyKey")?.trim();
   if (!companyKey) {
@@ -104,6 +127,6 @@ export async function DELETE(request: Request) {
     );
   }
 
-  await getStorage().deleteOrganizerEntry(username, companyKey);
+  await getStorage().deleteOrganizerEntry(session.username, companyKey);
   return NextResponse.json({ ok: true });
 }

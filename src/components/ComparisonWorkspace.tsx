@@ -14,7 +14,7 @@ interface ComparisonResult {
 const MIN_COMPANIES = 2;
 const MAX_COMPANIES = 3;
 
-export function ComparisonWorkspace() {
+export function ComparisonWorkspace({ isDemo = false }: { isDemo?: boolean }) {
   const [inputs, setInputs] = useState<string[]>(["", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +102,18 @@ export function ComparisonWorkspace() {
 
         <button
           type="button"
-          onClick={() => void run()}
-          disabled={loading}
+          onClick={() => !isDemo && void run()}
+          disabled={isDemo || loading}
+          title={isDemo ? "Sign in to compare companies" : undefined}
           className="self-start px-6 py-2 rounded-full bg-primary text-on-primary font-semibold shadow-elevation-1 hover:brightness-95 hover:shadow-elevation-2 active:scale-[0.97] transition-[filter,box-shadow,transform] disabled:opacity-50"
         >
           {loading ? "Researching…" : "Compare"}
         </button>
+        {isDemo && (
+          <p className="text-on-surface-variant text-sm">
+            Sign in to compare companies — this is disabled in the demo.
+          </p>
+        )}
       </div>
 
       {error && (

@@ -16,14 +16,20 @@ export function AppHeader({
   username,
   active,
   role,
+  isDemo = false,
 }: {
   username: string;
   active: (typeof NAV_ITEMS)[number]["key"];
   role: AccountRole;
+  /** A credential-free demo session - see add-demo-mode. Reaches every page (unlike search_only), so all nav items show; the account menu is replaced with a sign-in link instead of a real username. */
+  isDemo?: boolean;
 }) {
   // Cosmetic consistency with what middleware actually enforces, not the
-  // enforcement itself — see design.md (add-user-roles) §Decision 3.
-  const visibleNavItems = role === "search_only" ? NAV_ITEMS.filter((item) => item.key === "search") : NAV_ITEMS;
+  // enforcement itself — see design.md (add-user-roles) §Decision 3. A demo
+  // session reaches every page (middleware doesn't restrict it the way
+  // search_only is restricted), so it always sees the full nav.
+  const visibleNavItems =
+    !isDemo && role === "search_only" ? NAV_ITEMS.filter((item) => item.key === "search") : NAV_ITEMS;
   async function signOut() {
     "use server";
     await endSession();
@@ -62,10 +68,29 @@ export function AppHeader({
         <div className="flex items-center gap-4 shrink-0">
           <ThemeToggle />
           <div className="pl-4 border-l border-outline-variant">
-            <UserMenu username={username} signOut={signOut} />
+            {isDemo ? (
+              <Link
+                href="/signin"
+                className="px-4 py-2 rounded-full bg-primary text-on-primary text-sm font-semibold hover:brightness-95 active:scale-[0.97] transition-[filter,transform]"
+              >
+                Sign in
+              </Link>
+            ) : (
+              <UserMenu username={username} signOut={signOut} />
+            )}
           </div>
         </div>
       </div>
+
+      {isDemo && (
+        <div className="absolute top-full inset-x-0 bg-tertiary-fixed text-on-tertiary-fixed text-xs font-semibold text-center py-1.5 px-4">
+          You&apos;re browsing a demo — search is limited to a few sample companies, and saving/tracking is disabled.{" "}
+          <Link href="/signin" className="underline underline-offset-2 hover:no-underline">
+            Sign in
+          </Link>{" "}
+          for the real thing.
+        </div>
+      )}
     </header>
   );
 }

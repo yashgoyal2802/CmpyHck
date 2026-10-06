@@ -15,7 +15,7 @@ const ORIGIN = "http://localhost:3000";
 async function requestWithSession(
   path: string,
   role: AccountRole | null,
-  options?: { apiKey?: string | null },
+  options?: { apiKey?: string | null; isDemo?: boolean },
 ) {
   const request = new NextRequest(new URL(path, ORIGIN));
   if (role) {
@@ -25,7 +25,15 @@ async function requestWithSession(
         : role === "admin"
           ? undefined
           : "dummy-gemini-key";
-    const token = await createSessionToken(SECRET, "priya", role, undefined, undefined, apiKey);
+    const token = await createSessionToken(
+      SECRET,
+      "priya",
+      role,
+      undefined,
+      undefined,
+      apiKey,
+      options?.isDemo ?? false,
+    );
     request.cookies.set(SESSION_COOKIE, token);
   }
   const originalSecret = process.env.AUTH_SECRET;
@@ -119,5 +127,26 @@ describe("middleware session-key gating (add-per-session-gemini-key task 3.2)", 
     const response = await requestWithSession("/", "admin", { apiKey: null });
     expect(response.status).not.toBe(307);
     expect(response.status).not.toBe(401);
+  });
+});
+
+describe("middleware demo-session gating (add-demo-mode task 3.2)", () => {
+  for (const path of ["/", "/organizer", "/compare", "/saved"]) {
+    it(`lets a demo session (no key) reach ${path} without redirect`, async () => {
+      const response = await requestWithSession(path, "standard", { isDemo: true });
+      expect(response.status).not.toBe(307);
+      expect(response.status).not.toBe(401);
+    });
+  }
+
+  it("lets a demo session hit /api/briefs without 401", async () => {
+    const response = await requestWithSession("/api/briefs", "standard", { isDemo: true });
+    expect(response.status).not.toBe(401);
+  });
+
+  it("still rejects a non-demo keyless standard session exactly as before (regression guard)", async () => {
+    const response = await requestWithSession("/", "standard", { apiKey: null, isDemo: false });
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toContain("/signin");
   });
 });

@@ -3,6 +3,7 @@ import { getSessionAccount } from "@/lib/auth/server";
 import { BriefError, HTTP_STATUS, USER_MESSAGE, toBriefError } from "@/lib/brief/errors";
 import { generateBrief } from "@/lib/brief/pipeline";
 import { getProvider, getProviderForApiKey } from "@/lib/providers";
+import { createFakeProvider } from "@/lib/providers/fake";
 import { getStorage } from "@/lib/storage";
 
 /** Grounded research is slow; give it room before the platform cuts us off. */
@@ -38,6 +39,22 @@ export async function POST(request: Request) {
   }
 
   try {
+    // A demo session never calls a real provider and never touches the
+    // database - fixture-backed only, and `storage` is omitted entirely
+    // (generateBrief runs with no caching at all when it's absent) so a
+    // demo search can never read or write the real shared company cache.
+    // fallbackToGeneric is explicitly false: an unrecognized name must
+    // surface the real no_results outcome, not a fabricated generic brief -
+    // see add-demo-mode design.md (the BRIEF_PROVIDER=fake dev path uses
+    // fallbackToGeneric: true, which would be wrong here).
+    if (session.isDemo) {
+      const brief = await generateBrief(companyName, {
+        provider: createFakeProvider({ fallbackToGeneric: false }),
+        forceRefresh,
+      });
+      return NextResponse.json({ brief });
+    }
+
     // Admin uses the server's own key; every other role supplied its own at
     // login (middleware already refuses a non-admin session with no key, so
     // this is a defensive-depth check, not the primary enforcement point).

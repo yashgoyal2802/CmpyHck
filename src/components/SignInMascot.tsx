@@ -28,6 +28,16 @@ import { useEffect, useRef, useState } from "react";
  * component and this is the only client boundary the feature needs.
  */
 
+/**
+ * Cache-buster for the two sprite sheet files below. Browsers (and some
+ * CDNs/proxies) can keep serving an old cached copy of an image at the same
+ * URL indefinitely once fetched once, even after `scripts/dechecker.py`
+ * regenerates the file on disk with different bytes - bump this whenever
+ * either sprite file is regenerated, so every client is forced to re-fetch
+ * rather than possibly keep showing stale (and now-incorrect) pixels.
+ */
+const SPRITE_VERSION = "5";
+
 type Cell = { col: 0 | 1 | 2; row: 0 | 1 | 2 };
 
 const DIRECTIONS = {
@@ -179,7 +189,7 @@ export function SignInMascot({ initialError }: Readonly<{ initialError?: string 
     <div
       ref={rootRef}
       aria-hidden="true"
-      className="relative w-40 h-40 select-none"
+      className="relative w-48 h-48 select-none"
       style={{ filter: "drop-shadow(0px 6px 14px rgba(76, 36, 112, 0.18))" }}
     >
       <div
@@ -188,18 +198,18 @@ export function SignInMascot({ initialError }: Readonly<{ initialError?: string 
       >
         <div
           ref={directionsLayerRef}
-          className="absolute inset-0 bg-no-repeat transition-opacity duration-150"
+          className="absolute inset-0 bg-no-repeat"
           style={{
-            backgroundImage: "url(/mascot/yash-directions.webp)",
+            backgroundImage: `url(/mascot/yash-directions.webp?v=${SPRITE_VERSION})`,
             backgroundSize: "300% 300%",
             backgroundPosition: cellPosition(forcedDirectionCell ?? DIRECTIONS.center),
             opacity: showReactions ? 0 : 1,
           }}
         />
         <div
-          className="absolute inset-0 bg-no-repeat transition-opacity duration-150"
+          className="absolute inset-0 bg-no-repeat"
           style={{
-            backgroundImage: "url(/mascot/yash-reactions.webp)",
+            backgroundImage: `url(/mascot/yash-reactions.webp?v=${SPRITE_VERSION})`,
             backgroundSize: "300% 300%",
             backgroundPosition: cellPosition(reactionCell),
             opacity: showReactions ? 1 : 0,

@@ -264,11 +264,21 @@ interface OrganizerEntrySummary {
 }
 
 /** Independent of the OrganizerPanel tracker form below — a one-click reference marker, not a prep-status change. */
-function BookmarkButton({ companyKey, resolvedName }: { companyKey: string; resolvedName: string }) {
+function BookmarkButton({
+  companyKey,
+  resolvedName,
+  isDemo = false,
+}: {
+  companyKey: string;
+  resolvedName: string;
+  /** A credential-free demo session - see add-demo-mode. No live fetch, no write - a disabled button with a sign-in nudge. */
+  isDemo?: boolean;
+}) {
   const [bookmarked, setBookmarked] = useState<boolean | null>(null);
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
+    if (isDemo) return;
     let cancelled = false;
     fetch("/api/organizer")
       .then((res) => (res.ok ? res.json() : null))
@@ -317,10 +327,10 @@ function BookmarkButton({ companyKey, resolvedName }: { companyKey: string; reso
     <button
       type="button"
       onClick={toggle}
-      disabled={bookmarked === null || pending}
+      disabled={isDemo || bookmarked === null || pending}
       aria-pressed={bookmarked ?? false}
-      aria-label={bookmarked ? "Remove bookmark" : "Bookmark this company"}
-      title={bookmarked ? "Remove bookmark" : "Bookmark this company"}
+      aria-label={isDemo ? "Sign in to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark this company"}
+      title={isDemo ? "Sign in to bookmark" : bookmarked ? "Remove bookmark" : "Bookmark this company"}
       className={`grid place-items-center w-10 h-10 rounded-full active:scale-[0.94] transition-[background-color,transform,color] disabled:opacity-50 ${
         bookmarked
           ? "bg-tertiary-fixed text-on-tertiary-fixed"
@@ -337,9 +347,12 @@ function BookmarkButton({ companyKey, resolvedName }: { companyKey: string; reso
 export function BriefView({
   brief,
   onForceRefresh,
+  isDemo = false,
 }: {
   brief: CompanyBrief;
   onForceRefresh?: () => void;
+  /** A credential-free demo session - see add-demo-mode. Bookmark/tracker controls are disabled, not hidden. */
+  isDemo?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const sectorLabel = SECTOR_POLICY[brief.classification.sector].label;
@@ -385,7 +398,7 @@ export function BriefView({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <BookmarkButton companyKey={brief.companyKey} resolvedName={brief.resolvedName} />
+          <BookmarkButton companyKey={brief.companyKey} resolvedName={brief.resolvedName} isDemo={isDemo} />
           {onForceRefresh && (
             <button
               type="button"
@@ -560,7 +573,16 @@ export function BriefView({
         </Card>
       )}
 
-      <OrganizerPanel companyKey={brief.companyKey} resolvedName={brief.resolvedName} />
+      {isDemo ? (
+        <section className="bg-surface-container-lowest rounded-[1.5rem] shadow-elevation-1 p-6 flex flex-col gap-1">
+          <h3 className="text-lg font-bold text-on-surface">Your preparation tracker</h3>
+          <p className="text-sm text-on-surface-variant">
+            Sign in to track preparation status, interview dates, and confidence for this company.
+          </p>
+        </section>
+      ) : (
+        <OrganizerPanel companyKey={brief.companyKey} resolvedName={brief.resolvedName} />
+      )}
 
       <Card title="Sources">
         <ul className="flex flex-col divide-y divide-outline-variant/30 text-sm">

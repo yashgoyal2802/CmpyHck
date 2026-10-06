@@ -22,8 +22,8 @@ export default async function HomePage({
 
   return (
     <>
-      <AppHeader username={account.username} role={account.role} active="search" />
-      <main className="pt-16 min-h-screen bg-surface relative overflow-hidden">
+      <AppHeader username={account.username} role={account.role} active="search" isDemo={account.isDemo} />
+      <main className={`${account.isDemo ? "pt-24" : "pt-16"} min-h-screen bg-surface relative overflow-hidden`}>
         <div
           className="absolute top-0 right-0 w-3/4 h-[600px] bg-gradient-to-bl from-primary-fixed-dim/30 via-transparent to-transparent blur-3xl -z-10 pointer-events-none rounded-bl-full"
           aria-hidden="true"
@@ -46,7 +46,7 @@ export default async function HomePage({
             </p>
           </div>
 
-          <BriefWorkspace initialCompany={company} />
+          <BriefWorkspace initialCompany={company} isDemo={account.isDemo} />
         </div>
       </main>
     </>
